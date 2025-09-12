@@ -1,0 +1,21 @@
+{
+  "name": "obsidian-omnivore-mock-server",
+  "version": "1.0.0",
+  "description": "Mock server for Obsidian Omnivore plugin local testing",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "body-parser": "^1.20.2",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "author": "",
+  "license": "MIT"
+}

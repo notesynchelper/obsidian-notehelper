@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(set LOCAL_TEST=true)",
+      "Bash(npm run dev:*)",
+      "Bash(npm start)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(git init:*)",
+      "Bash(git add:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
