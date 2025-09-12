@@ -7,7 +7,8 @@
       "Bash(netstat:*)",
       "Bash(findstr:*)",
       "Bash(git init:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": []
