@@ -15,7 +15,9 @@
       "Bash(npm install:*)",
       "Bash(npm run init-db:*)",
       "Bash(copy:*)",
-      "Bash(npm run test-api:*)"
+      "Bash(npm run test-api:*)",
+      "Bash(podman:*)",
+      "Bash(curl:*)"
     ],
     "deny": [],
     "ask": []
