@@ -12,7 +12,9 @@
       "Bash(npm run build:local:*)",
       "Bash(npm run build:*)",
       "Bash(\"C:\\Users\\laizeyang\\AppData\\Local\\Programs\\Obsidian\\Obsidian.exe\")",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(npm run init-db:*)",
+      "Bash(copy:*)"
     ],
     "deny": [],
     "ask": []
