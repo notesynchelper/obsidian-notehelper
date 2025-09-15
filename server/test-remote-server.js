@@ -1,7 +1,7 @@
 const axios = require('axios');
 
-// 远程服务器配置
-const REMOTE_API_BASE_URL = 'http://140.143.189.226:3002';
+// 远程服务器配置 - 使用 Cloudflare Worker 网关
+const REMOTE_API_BASE_URL = 'https://obsidian.notebooksyncer.com';
 
 // 测试数据
 const testUser = {
@@ -29,6 +29,7 @@ async function makeRequest(method, url, data = null, headers = {}, timeout = 100
       url: `${REMOTE_API_BASE_URL}${url}`,
       headers: {
         'Content-Type': 'application/json',
+        'x-api-key': 'test-key', // Add default API key for testing
         ...headers
       },
       timeout

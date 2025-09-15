@@ -1,7 +1,7 @@
 // Cloudflare Worker: API Gateway for Obsidian Notes Sync
 // This worker acts as a simple gateway to protect the backend server address
 
-const BACKEND_URL = 'http://140.143.189.226:3002';
+const BACKEND_URL = 'http://wecom.bijitongbu.site:8880';
 
 export default {
   async fetch(request, env, ctx) {

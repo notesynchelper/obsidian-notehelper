@@ -19,3 +19,7 @@ obsidian 安装位置是C:\Users\laizeyang\AppData\Local\Programs\Obsidian\Obsid
 然后启动后端服务
 
 然后启动客户端，如果客户端已经打开就重启
+
+# 线上部署
+
+cf 文件夹中的项目只写worker js 中的代码，不要向cf 进行部署

@@ -17,7 +17,9 @@
       "Bash(copy:*)",
       "Bash(npm run test-api:*)",
       "Bash(podman:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(node:*)",
+      "Bash(npx wrangler:*)"
     ],
     "deny": [],
     "ask": []
