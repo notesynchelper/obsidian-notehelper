@@ -4,9 +4,9 @@
 
 # 环境情况
 
-电脑是win 11
+电脑是win 11，Bash 需要是Win 的命令。比如，在bash环境中复制应该使用cp命令，路径是cd /c/Users/laizeyang/OneDrive/OWN/笔记同步助手/gate/obsidian/
 
-obsidian 插件目录是 C:\Users\laizeyang\Documents\Obsidian Vault\.obsidian\plugins\my-plugin，直接使用这个目录将构建好的文件放里面，不要建文件夹
+obsidian 插件目录是 C:\Users\laizeyang\Docum/ents\Obsidian Vault\.obsidian\plugins\my-plugin，直接使用这个目录将构建好的文件放里面，不要建文件夹
 
 插件文件夹中的数据配置每次测试时需要删除 C:\Users\laizeyang\Documents\Obsidian Vault\.obsidian\plugins\data.json
 

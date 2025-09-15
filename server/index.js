@@ -298,6 +298,220 @@ app.get('/api/download/:itemId', authenticateApiKey, async (req, res) => {
   }
 });
 
+// 用户管理接口 - 创建用户
+app.post('/api/users', async (req, res) => {
+  try {
+    const { username, email } = req.body;
+
+    if (!username) {
+      return res.status(400).json({
+        error: '用户名不能为空'
+      });
+    }
+
+    if (!USE_DATABASE) {
+      return res.status(503).json({
+        error: '此功能需要数据库模式',
+        message: '请设置环境变量 SUPABASE_KEY_OB 以启用数据库模式'
+      });
+    }
+
+    // 生成API key，默认与用户名相同
+    const apiKey = username;
+
+    const userData = {
+      api_key: apiKey,
+      username: username,
+      email: email || null
+    };
+
+    const { data, error } = await dbManager.supabase
+      .from('users')
+      .insert(userData)
+      .select()
+      .single();
+
+    if (error) {
+      if (error.code === '23505') {
+        return res.status(409).json({
+          error: '用户已存在',
+          message: '用户名或API密钥已被使用'
+        });
+      }
+      throw error;
+    }
+
+    res.status(201).json({
+      success: true,
+      data: {
+        id: data.id,
+        username: data.username,
+        email: data.email,
+        apiKey: data.api_key,
+        createdAt: data.created_at
+      }
+    });
+  } catch (error) {
+    console.error('创建用户失败:', error);
+    res.status(500).json({
+      error: '服务器内部错误',
+      message: error.message
+    });
+  }
+});
+
+// 用户管理接口 - 修改API key
+app.put('/api/users/:username/api-key', async (req, res) => {
+  try {
+    const { username } = req.params;
+    const { newApiKey } = req.body;
+
+    if (!username) {
+      return res.status(400).json({
+        error: '用户名不能为空'
+      });
+    }
+
+    if (!newApiKey) {
+      return res.status(400).json({
+        error: '新的API密钥不能为空'
+      });
+    }
+
+    if (!USE_DATABASE) {
+      return res.status(503).json({
+        error: '此功能需要数据库模式',
+        message: '请设置环境变量 SUPABASE_KEY_OB 以启用数据库模式'
+      });
+    }
+
+    // 更新API key
+    const { data, error } = await dbManager.supabase
+      .from('users')
+      .update({
+        api_key: newApiKey,
+        updated_at: new Date().toISOString()
+      })
+      .eq('username', username)
+      .select()
+      .single();
+
+    if (error) {
+      if (error.code === '23505') {
+        return res.status(409).json({
+          error: 'API密钥已存在',
+          message: '该API密钥已被其他用户使用'
+        });
+      }
+      throw error;
+    }
+
+    if (!data) {
+      return res.status(404).json({
+        error: '用户不存在',
+        message: '未找到指定的用户'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        id: data.id,
+        username: data.username,
+        apiKey: data.api_key,
+        updatedAt: data.updated_at
+      }
+    });
+  } catch (error) {
+    console.error('修改API密钥失败:', error);
+    res.status(500).json({
+      error: '服务器内部错误',
+      message: error.message
+    });
+  }
+});
+
+// 文章管理接口 - 创建文章
+app.post('/api/articles', authenticateApiKey, async (req, res) => {
+  try {
+    const {
+      title,
+      url,
+      originalArticleUrl,
+      author,
+      description,
+      image,
+      content,
+      wordsCount,
+      siteName
+    } = req.body;
+
+    if (!title) {
+      return res.status(400).json({
+        error: '文章标题不能为空'
+      });
+    }
+
+    if (!USE_DATABASE) {
+      return res.status(503).json({
+        error: '此功能需要数据库模式',
+        message: '请设置环境变量 SUPABASE_KEY_OB 以启用数据库模式'
+      });
+    }
+
+    const articleData = {
+      user_id: req.user.id,
+      title: title,
+      url: url || null,
+      original_article_url: originalArticleUrl || null,
+      slug: title.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-'),
+      author: author || null,
+      description: description || null,
+      image: image || null,
+      content: content || null,
+      words_count: wordsCount || 0,
+      site_name: siteName || null,
+      reading_progress_percent: 0,
+      is_archived: false
+    };
+
+    const { data, error } = await dbManager.supabase
+      .from('articles')
+      .insert(articleData)
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    res.status(201).json({
+      success: true,
+      data: {
+        id: data.id,
+        title: data.title,
+        url: data.url,
+        originalArticleUrl: data.original_article_url,
+        slug: data.slug,
+        author: data.author,
+        description: data.description,
+        image: data.image,
+        content: data.content,
+        wordsCount: data.words_count,
+        siteName: data.site_name,
+        savedAt: data.saved_at,
+        updatedAt: data.updated_at
+      }
+    });
+  } catch (error) {
+    console.error('创建文章失败:', error);
+    res.status(500).json({
+      error: '服务器内部错误',
+      message: error.message
+    });
+  }
+});
+
 // 健康检查端点
 app.get('/health', (req, res) => {
   res.json({
@@ -362,6 +576,9 @@ async function startServer() {
     console.log(`\n📡 API端点:`);
     console.log(`🔍 GraphQL: http://localhost:${PORT}/api/graphql`);
     console.log(`📄 内容API: http://localhost:${PORT}/api/content`);
+    console.log(`👤 用户管理: http://localhost:${PORT}/api/users`);
+    console.log(`🔑 修改API密钥: http://localhost:${PORT}/api/users/:username/api-key`);
+    console.log(`📝 创建文章: http://localhost:${PORT}/api/articles`);
     console.log(`❤️  健康检查: http://localhost:${PORT}/health`);
     console.log(`🐛 调试端点: http://localhost:${PORT}/api/debug/articles`);
 

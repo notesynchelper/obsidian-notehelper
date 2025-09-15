@@ -14,7 +14,8 @@
       "Bash(\"C:\\Users\\laizeyang\\AppData\\Local\\Programs\\Obsidian\\Obsidian.exe\")",
       "Bash(npm install:*)",
       "Bash(npm run init-db:*)",
-      "Bash(copy:*)"
+      "Bash(copy:*)",
+      "Bash(npm run test-api:*)"
     ],
     "deny": [],
     "ask": []
