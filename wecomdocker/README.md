@@ -32,15 +32,12 @@ npm start
 ## Docker镜像构建
 
 ```bash
-# 构建镜像podman build -t lzyob .
+# 构建镜像podman build -t wecom-obsidian .
 
 # 运行容器
-podman run -d \
-  -p 8000:8000 \
-  --env WECOM_CORP_SECRET \
-  --env COSMOS_KEY \
-  --name wecom-sync \
-  lzyob
+cd wecomdocker
+
+podman run -d -p 8000:8000 --env WECOM_CORP_SECRET --env COSMOS_KEY --name wecom-sync wecom-obsidian
 ```
 
 ## API接口

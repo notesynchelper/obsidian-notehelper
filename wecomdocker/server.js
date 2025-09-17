@@ -221,8 +221,8 @@ async function writeToOnlineService(articleData, userConfig) {
         };
 
         // 从用户配置中获取API key
-        if (userConfig && userConfig.api_key) {
-            headers['x-api-key'] = userConfig.api_key;
+        if (userConfig && userConfig.ob_api_key) {
+            headers['x-api-key'] = userConfig.ob_api_key;
         }
 
         const response = await axios.post('https://obsidian.notebooksyncer.com/api/articles', articleData, {
