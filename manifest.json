@@ -3,8 +3,8 @@
 	"name": "笔记同步助手",
 	"version": "1.10.4",
 	"minAppVersion": "0.15.0",
-	"description": "笔记同步助手 - 用于同步笔记和文章到 Obsidian 的插件",
+	"description": "Note synchronization assistant - sync notes and articles with intelligent content parsing and formatting",
 	"author": "NoteHelper Team",
-	"authorUrl": "https://github.com/notehelper",
+	"authorUrl": "https://github.com/notesynchelper",
 	"isDesktopOnly": false
 }
