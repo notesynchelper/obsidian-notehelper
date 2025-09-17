@@ -131,18 +131,15 @@ app.post('/api/graphql', authenticateApiKey, async (req, res) => {
         articles = filteredArticles.slice(startIndex, endIndex);
       }
 
+      // 返回Omnivore兼容的格式
       const response = {
-        data: {
-          search: {
-            items: articles,
-            pageInfo: {
-              hasNextPage: USE_DATABASE ? articles.length >= (parseInt(first) || 10) : false,
-              hasPreviousPage: (parseInt(after) || 0) > 0,
-              startCursor: (parseInt(after) || 0).toString(),
-              endCursor: Math.max(0, (parseInt(after) || 0) + articles.length - 1).toString(),
-              totalCount: articles.length
-            }
-          }
+        edges: articles.map(article => ({ node: article })),
+        pageInfo: {
+          hasNextPage: USE_DATABASE ? articles.length >= (parseInt(first) || 10) : false,
+          hasPreviousPage: (parseInt(after) || 0) > 0,
+          startCursor: (parseInt(after) || 0).toString(),
+          endCursor: Math.max(0, (parseInt(after) || 0) + articles.length - 1).toString(),
+          totalCount: articles.length
         }
       };
 

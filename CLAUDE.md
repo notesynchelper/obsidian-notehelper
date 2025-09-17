@@ -16,12 +16,6 @@
 
 杀进程是 Bash(taskkill //PID 20544 //F)
 
-obsidian 插件目录是 C:\Users\laizeyang\Docum/ents\Obsidian Vault\.obsidian\plugins\my-plugin，直接使用这个目录将构建好的文件放里面，不要建文件夹
-
-插件文件夹中的数据配置每次测试时需要删除 C:\Users\laizeyang\Documents\Obsidian Vault\.obsidian\plugins\data.json
-
-obsidian 安装位置是C:\Users\laizeyang\AppData\Local\Programs\Obsidian\Obsidian.exe
-
 调试podman 命令参考 podman exec wecom-sync ls -la .
 
 # 修改代码
@@ -30,11 +24,17 @@ obsidian 安装位置是C:\Users\laizeyang\AppData\Local\Programs\Obsidian\Obsid
 
 # 本地测试
 
-本地测试需要将构建好的插件复制到obsidian目录
+## ob插件
 
-然后启动后端服务
+* 本地测试需要将构建好的插件复制到obsidian目录
+* 插件默认是对接线上后端服务进行测试，除非是正在开发后端服务拉起了本地的后端服务进行测试的时候插件需要改为本地地址
+* obsidian 插件目录是 C:\Users\laizeyang\Docum/ents\Obsidian Vault.obsidian\plugins\my-plugin，直接使用这个目录将构建好的文件放里面，不要建文件夹
 
-然后启动客户端，如果客户端已经打开就重启
+- 插件文件夹中的数据配置每次测试时需要删除 C:\Users\laizeyang\Documents\Obsidian Vault\.obsidian\plugins\data.json
+
+- obsidian 安装位置是C:\Users\laizeyang\AppData\Local\Programs\Obsidian\Obsidian.exe
+
+- 然后启动客户端，如果客户端已经打开就重启
 
 ## wecomdocker 文件夹中项目测试
 
