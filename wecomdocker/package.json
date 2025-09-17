@@ -1,0 +1,19 @@
+{
+  "name": "wecom-obsidian-sync",
+  "version": "1.0.0",
+  "description": "企微消息拉取处理服务，用于同步消息到Obsidian",
+  "main": "server.js",
+  "dependencies": {
+    "express": "^4.19.2",
+    "axios": "^1.6.8",
+    "@azure/cosmos": "^4.0.0"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "author": "",
+  "license": "ISC"
+}

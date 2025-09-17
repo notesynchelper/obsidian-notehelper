@@ -19,7 +19,10 @@
       "Bash(podman:*)",
       "Bash(curl:*)",
       "Bash(node:*)",
-      "Bash(npx wrangler:*)"
+      "Bash(npx wrangler:*)",
+      "Read(//c/Users/laizeyang/OneDrive/OWN/笔记同步助手/gate/wecomMessageDocker/makeimagev2/**)",
+      "WebFetch(domain:developer.work.weixin.qq.com)",
+      "Read(//c/Users/laizeyang/OneDrive/OWN/笔记同步助手/gate/wecomMessageDocker/**)"
     ],
     "deny": [],
     "ask": []
