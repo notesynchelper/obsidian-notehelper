@@ -6,6 +6,8 @@
 
 文件夹 obsidian-plug 是ob 插件代码的位置
 
+文件夹plug-submit 是要公开提交的ob 插件
+
 文件夹 server 是ob 插件链接的服务端的位置
 
 文件夹wecomdocker 是拉取消息并存到数据库服务的位置
@@ -48,5 +50,11 @@
 收到返回后获取podman 中该容器的日志进行查看验证
 
 # 线上部署
+
+## OB 插件上线
+
+电脑里有github cli ，上线需要用frank@onenotes.app 账号
+
+## CF
 
 cf 文件夹中的项目只写worker js 中的代码，不要向cf 进行部署
