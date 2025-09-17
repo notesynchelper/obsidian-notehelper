@@ -213,17 +213,25 @@ async function markMessageProcessed(uniqueKey) {
 }
 
 // 注册用户到线上服务
-async function registerUserToOnlineService(openId) {
+async function registerUserToOnlineService(openId, userConfig) {
     try {
         const userData = {
             username: openId,
             email: `${openId}@wecom.example.com`
         };
 
+        // 构造请求头，使用用户配置中的API密钥进行认证
+        const headers = {
+            'Content-Type': 'application/json'
+        };
+
+        // 如果用户配置中有API密钥，用它来认证注册请求
+        if (userConfig && userConfig.ob_api_key) {
+            headers['x-api-key'] = userConfig.ob_api_key;
+        }
+
         const response = await axios.post('https://obsidian.notebooksyncer.com/api/users', userData, {
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers,
             timeout: 30000
         });
 
@@ -241,14 +249,15 @@ async function registerUserToOnlineService(openId) {
 
 // 向线上服务写入数据
 async function writeToOnlineService(articleData, userConfig, openId) {
+    // 从用户配置中获取API key，如果没有则使用openId作为默认API key
+    const apiKey = (userConfig && userConfig.ob_api_key) ? userConfig.ob_api_key : openId;
+
     try {
         // 构造请求头，包含用户的API key
         const headers = {
             'Content-Type': 'application/json'
         };
 
-        // 从用户配置中获取API key，如果没有则使用openId作为默认API key
-        const apiKey = (userConfig && userConfig.ob_api_key) ? userConfig.ob_api_key : openId;
         if (apiKey) {
             headers['x-api-key'] = apiKey;
         }
@@ -264,11 +273,11 @@ async function writeToOnlineService(articleData, userConfig, openId) {
         if (error.response && error.response.status === 401 && openId) {
             console.log('API密钥无效，尝试注册用户:', openId);
             try {
-                await registerUserToOnlineService(openId);
+                await registerUserToOnlineService(openId, userConfig);
                 // 注册成功后重试写入
                 const retryHeaders = {
                     'Content-Type': 'application/json',
-                    'x-api-key': openId // 使用openId作为API key重试
+                    'x-api-key': apiKey // 使用原来的apiKey重试
                 };
 
                 const retryResponse = await axios.post('https://obsidian.notebooksyncer.com/api/articles', articleData, {

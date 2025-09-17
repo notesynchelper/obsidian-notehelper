@@ -2,6 +2,14 @@
 
 这个项目是一个obsidian 插件及服务端项目，插件提供的是将数据加载到obsidian 里的功能
 
+## 子项目情况
+
+文件夹 obsidian-plug 是ob 插件代码的位置
+
+文件夹 server 是ob 插件链接的服务端的位置
+
+文件夹wecomdocker 是拉取消息并存到数据库服务的位置
+
 # 环境情况
 
 电脑是win 11，Bash 需要是Win 的命令。比如，在bash环境中复制应该使用cp命令，路径是cd /c/Users/laizeyang/OneDrive/OWN/笔记同步助手/gate/obsidian/
