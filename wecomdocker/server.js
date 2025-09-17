@@ -212,17 +212,45 @@ async function markMessageProcessed(uniqueKey) {
     }
 }
 
+// 注册用户到线上服务
+async function registerUserToOnlineService(openId) {
+    try {
+        const userData = {
+            username: openId,
+            email: `${openId}@wecom.example.com`
+        };
+
+        const response = await axios.post('https://obsidian.notebooksyncer.com/api/users', userData, {
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            timeout: 30000
+        });
+
+        console.log('用户注册成功:', openId, response.data);
+        return response.data;
+    } catch (error) {
+        if (error.response && error.response.status === 409) {
+            console.log('用户已存在:', openId);
+            return null; // 用户已存在，不算错误
+        }
+        console.error('用户注册失败:', error);
+        throw error;
+    }
+}
+
 // 向线上服务写入数据
-async function writeToOnlineService(articleData, userConfig) {
+async function writeToOnlineService(articleData, userConfig, openId) {
     try {
         // 构造请求头，包含用户的API key
         const headers = {
             'Content-Type': 'application/json'
         };
 
-        // 从用户配置中获取API key
-        if (userConfig && userConfig.ob_api_key) {
-            headers['x-api-key'] = userConfig.ob_api_key;
+        // 从用户配置中获取API key，如果没有则使用openId作为默认API key
+        const apiKey = (userConfig && userConfig.ob_api_key) ? userConfig.ob_api_key : openId;
+        if (apiKey) {
+            headers['x-api-key'] = apiKey;
         }
 
         const response = await axios.post('https://obsidian.notebooksyncer.com/api/articles', articleData, {
@@ -232,6 +260,30 @@ async function writeToOnlineService(articleData, userConfig) {
 
         return response.data;
     } catch (error) {
+        // 如果是401错误（API密钥无效），尝试注册用户
+        if (error.response && error.response.status === 401 && openId) {
+            console.log('API密钥无效，尝试注册用户:', openId);
+            try {
+                await registerUserToOnlineService(openId);
+                // 注册成功后重试写入
+                const retryHeaders = {
+                    'Content-Type': 'application/json',
+                    'x-api-key': openId // 使用openId作为API key重试
+                };
+
+                const retryResponse = await axios.post('https://obsidian.notebooksyncer.com/api/articles', articleData, {
+                    headers: retryHeaders,
+                    timeout: 30000
+                });
+
+                console.log('用户注册后重试写入成功');
+                return retryResponse.data;
+            } catch (registerError) {
+                console.error('注册用户后重试写入失败:', registerError);
+                throw registerError;
+            }
+        }
+
         console.error('写入线上服务失败:', error);
         throw error;
     }
@@ -293,7 +345,7 @@ async function processMessage(msg, msgType) {
         }
 
         // 5. 写入线上服务
-        const writeResult = await writeToOnlineService(articleData, userInfo.config);
+        const writeResult = await writeToOnlineService(articleData, userInfo.config, userInfo.openId);
         console.log('写入线上服务成功:', writeResult.data?.id);
 
         // 6. 标记消息已处理
@@ -368,46 +420,78 @@ app.get('/', async (req, res) => {
     try {
         const { seq } = req.query;
         let targetSeq = seq ? parseInt(seq) : await getLastSeq();
-
         console.log('开始处理企微消息，seq:', targetSeq);
 
-        // 拉取企微消息
-        const result = await getWecomMessages(CORPID, WECOM_CORP_SECRET, targetSeq);
-        console.log(`获取到 ${result.data.length} 条消息，last_seq: ${result.last_seq}`);
+        let totalMessages = 0;
+        let totalFiltered = 0;
+        let totalProcessed = 0;
+        let currentSeq = targetSeq;
+        let finalSeq = currentSeq;
+        let loopCount = 0;
+        const maxLoops = 50; // 防止无限循环，最多循环50次
 
-        // 解析和过滤消息
-        const filteredMessages = parseAndFilterMessages(result.data);
-        console.log(`过滤后消息数量: ${filteredMessages.length}`);
+        // 循环拉取消息直到没有更多消息
+        while (loopCount < maxLoops) {
+            loopCount++;
+            console.log(`第 ${loopCount} 次拉取，seq: ${currentSeq}`);
 
-        // 分类消息
-        const { textMessages, specialMessages } = categorizeMessages(filteredMessages);
-        console.log(`文本消息: ${textMessages.length}, 特殊消息: ${specialMessages.length}`);
+            // 拉取企微消息
+            const result = await getWecomMessages(CORPID, WECOM_CORP_SECRET, currentSeq);
+            console.log(`获取到 ${result.data.length} 条消息，last_seq: ${result.last_seq}`);
 
-        let processedCount = 0;
+            // 如果没有新消息或者seq没有变化，停止循环
+            if (result.data.length === 0 || result.last_seq === currentSeq) {
+                console.log('没有更多消息，停止拉取');
+                break;
+            }
 
-        // 处理文本消息
-        for (const msg of textMessages) {
-            const success = await processMessage(msg, 'text');
-            if (success) processedCount++;
+            // 解析和过滤消息
+            const filteredMessages = parseAndFilterMessages(result.data);
+            console.log(`过滤后消息数量: ${filteredMessages.length}`);
+
+            // 分类消息
+            const { textMessages, processedMessages } = categorizeMessages(filteredMessages);
+            console.log(`文本消息: ${textMessages.length}, 处理消息: ${processedMessages.length}`);
+
+            let processedCount = 0;
+
+            // 处理文本消息
+            for (const msg of textMessages) {
+                const success = await processMessage(msg, 'text');
+                if (success) processedCount++;
+            }
+
+            // 累计统计
+            totalMessages += result.data.length;
+            totalFiltered += filteredMessages.length;
+            totalProcessed += processedCount;
+
+            // 更新seq为下一次拉取
+            currentSeq = result.last_seq;
+            finalSeq = result.last_seq;
+
+            console.log(`本轮处理完成，处理消息: ${processedCount}, 累计处理: ${totalProcessed}`);
+
+            // 如果返回的消息数量小于最大数量，说明已经拉取完毕
+            if (result.data.length < 50) { // 50是maxResults的默认值
+                console.log('消息数量小于限制，已拉取完毕');
+                break;
+            }
         }
 
-        // 处理特殊消息（链接等）
-        for (const msg of specialMessages) {
-            const success = await processMessage(msg, msg.msgtype);
-            if (success) processedCount++;
-        }
+        // 保存最终的seq
+        await saveLastSeq(finalSeq);
 
-        // 保存新的seq
-        await saveLastSeq(result.last_seq);
+        console.log(`拉取完成，共 ${loopCount} 轮，总消息: ${totalMessages}, 过滤: ${totalFiltered}, 处理: ${totalProcessed}`);
 
         res.json({
             success: true,
-            last_seq: result.last_seq,
-            total_messages: result.data.length,
-            filtered_messages: filteredMessages.length,
-            processed_count: processedCount
+            last_seq: finalSeq,
+            loops: loopCount,
+            total_messages: totalMessages,
+            filtered_messages: totalFiltered,
+            processed_count: totalProcessed
         });
-
     } catch (error) {
         console.error('处理企微消息失败:', error);
         res.status(500).json({ error: error.message });

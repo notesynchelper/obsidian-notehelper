@@ -25,6 +25,7 @@ FROM node:22-bullseye-slim
 # 暴露端口 8000
 EXPOSE 8000
 WORKDIR /app
+# 复制所有文件包括node_modules
 COPY --from=builder /app .
 # 创建非 root 用户 (Debian/Ubuntu 语法)
 RUN groupadd --gid 1001 nodejs

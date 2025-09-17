@@ -29,7 +29,7 @@ const privateKey =
 "-----END PRIVATE KEY-----\n";
 
 // 企微消息拉取功能 - 使用真实的企微SDK
-async function getWecomMessages(corpid, secret, seq = 0, maxResults = 1000, timeout = 30) {
+async function getWecomMessages(corpid, secret, seq = 0, maxResults = 50, timeout = 30) {
     try {
         console.log(`拉取企微消息: corpid=${corpid}, seq=${seq}`);
 
@@ -84,7 +84,7 @@ function parseAndFilterMessages(messages) {
             }
 
             // 只处理发给obsidian的消息或群消息
-            if (msg.tolist && (msg.tolist.includes("obsidian") || msg.tolist.includes("@all"))) {
+            if (msg.tolist && (msg.tolist.includes("zeyang") )) {
                 // 添加消息处理时间戳
                 msg.processTime = Date.now();
                 filteredMessages.push(msg);

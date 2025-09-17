@@ -54,7 +54,3 @@ podman run -d -p 8000:8000 --env WECOM_CORP_SECRET --env COSMOS_KEY --name wecom
 5. 内容解析和处理
 6. 写入Obsidian服务
 7. 发送企微通知
-
-## 部署说明
-
-本服务设计为容器化部署，使用Podman构建镜像名称为 `lzyob`。
