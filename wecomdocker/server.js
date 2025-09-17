@@ -159,6 +159,24 @@ async function getUserConfig(openId) {
     }
 }
 
+// 根据unionid查询openid
+async function queryOpenIdByUnionId(unionId) {
+    if (!container) return null;
+
+    try {
+        const querySpec = {
+            query: `SELECT c.id FROM c WHERE c.pt = 'oid_uid' AND c.unionid = @unionId AND c.app = 'bijitongbuzhushou_mp'`,
+            parameters: [{ name: '@unionId', value: unionId }]
+        };
+
+        const { resources } = await container.items.query(querySpec).fetchAll();
+        return resources.length > 0 ? resources[0].id : null;
+    } catch (error) {
+        console.error('根据unionid查询openid失败:', error);
+        return null;
+    }
+}
+
 // 检查消息是否已处理（防重复）
 async function checkMessageProcessed(uniqueKey) {
     if (!container) return false;
@@ -315,9 +333,16 @@ async function resolveUserInfo(wecomFrom) {
                 return null;
             }
 
-            // 3. 这里需要将unionid转换为openid的逻辑
-            // 由于缺少具体的转换接口，暂时使用unionid作为openid
-            openId = wecomUserInfo.external_contact.union_id || wecomFrom;
+            // 3. 通过unionid查询cosmosdb获取对应的openid
+            const unionId = wecomUserInfo.external_contact.union_id;
+            if (unionId) {
+                openId = await queryOpenIdByUnionId(unionId);
+            }
+
+            // 如果没有找到对应的openid，使用unionid作为fallback
+            if (!openId) {
+                openId = unionId || wecomFrom;
+            }
 
             // 4. 保存关联关系
             await saveUserMapping(wecomFrom, openId);
