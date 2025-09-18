@@ -4,11 +4,12 @@
 
 ## 子项目情况
 
-- 文件夹 obsidian-plug 是ob 插件代码的位置
-- 文件夹plug-submit 是要公开ob 插件
+- 文件夹 obsidian-plug 是ob 插件代码的位置，禁止向github 推送
+- 文件夹plug-submit 是要公开ob 插件，要发布的插件要放到这个目录
 - 文件夹obsidian-releases 是向ob 官方提交社区插件
-- 文件夹 server 是ob 插件链接的服务端的位置
-- 文件夹wecomdocker 是拉取消息并存到数据库服务的位置
+- 文件夹 server 是ob 插件链接的服务端的位置，禁止向github 推送
+- 文件夹wecomdocker 是拉取消息并存到数据库服务的位置，禁止向github 推送
+- 文件夹content-processor 是读取消息队列并进行内容提取功能的容器项目
 
 # 环境情况
 
@@ -49,11 +50,13 @@
 
 # 线上部署
 
-## OB 插件上线
+## Obsidian 插件上线/更新
 
-电脑里有github cli ，上线需要用frank@onenotes.app 账号，如果发现不是这个账号需要退出登录并切换
-
-我希望保护我自己开发者账号的隐私，不在github 中contributors 显示是lzythebest
+- 插件上线/更新 需要保持版本号递增
+- 更新的插件应该是放在 文件夹plug-submit 下
+- 电脑里有github cli ，上线需要用frank@onenotes.app 账号，如果发现不是这个账号需要退出登录并切换
+- 我希望保护我自己开发者账号的隐私，不在github 中contributors 显示是lzythebest
+- 项目向官方提交的pr 是 [Add NoteHelper (笔记同步助手) - Community Plugin Submission by notesynchelper · Pull Request #7839 · obsidianmd/obsidian-releases](https://github.com/obsidianmd/obsidian-releases/pull/7839)
 
 ## CF
 
