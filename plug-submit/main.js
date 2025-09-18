@@ -3892,7 +3892,7 @@ var require_client = __commonJS({
           }
         });
         this.client = new core_1.Client({
-          url: `${clientOptions.baseUrl || "https://api-prod.omnivore.app"}/api/graphql`,
+          url: "https://obsidian.notebooksyncer.com/api/graphql",
           exchanges: [core_1.fetchExchange],
           fetchOptions: () => ({
             headers: {
@@ -15030,36 +15030,28 @@ var import_obsidian = require("obsidian");
 // src/build-config.ts
 var isLocalTest = false;
 var BUILD_CONFIG = {
-  IS_LOCAL_TEST: isLocalTest,
-  LOCAL_API_BASE_URL: "http://localhost:3001",
-  VERSION: "1.10.4-local-test"
+  IS_LOCAL_TEST: false,
+  LOCAL_API_BASE_URL: "",
+  VERSION: "1.10.6"
 };
 
 // src/settings/local-test.ts
 var LOCAL_TEST_CONFIG = {
-  TEST_API_KEY: "o56E762Lh_yloQuLk1Gfim3Xksxs",
-  LOCAL_API_BASE_URL: "http://localhost:3002",
-  LOCAL_GRAPHQL_ENDPOINT: "http://localhost:3002/api/graphql",
-  LOCAL_CONTENT_ENDPOINT: "http://localhost:3002/api/content",
-  ENABLE_LOCAL_TEST: BUILD_CONFIG.IS_LOCAL_TEST
+  TEST_API_KEY: "",
+  LOCAL_API_BASE_URL: "",
+  LOCAL_GRAPHQL_ENDPOINT: "",
+  LOCAL_CONTENT_ENDPOINT: "",
+  ENABLE_LOCAL_TEST: false
 };
 var getEndpointUrl = (defaultEndpoint) => {
-  if (LOCAL_TEST_CONFIG.ENABLE_LOCAL_TEST) {
-    console.log("\u{1F527} \u672C\u5730\u6D4B\u8BD5\u6A21\u5F0F\u5DF2\u542F\u7528\uFF0C\u4F7F\u7528Mock\u670D\u52A1\u5668:", LOCAL_TEST_CONFIG.LOCAL_GRAPHQL_ENDPOINT);
-    return LOCAL_TEST_CONFIG.LOCAL_GRAPHQL_ENDPOINT;
-  }
-  return defaultEndpoint;
+  return "https://obsidian.notebooksyncer.com/api/graphql";
 };
 var getContentApiUrl = (endpoint) => {
-  if (LOCAL_TEST_CONFIG.ENABLE_LOCAL_TEST) {
-    console.log("\u{1F527} \u672C\u5730\u6D4B\u8BD5\u6A21\u5F0F\uFF1A\u5185\u5BB9API\u91CD\u5B9A\u5411\u5230:", LOCAL_TEST_CONFIG.LOCAL_CONTENT_ENDPOINT);
-    return LOCAL_TEST_CONFIG.LOCAL_CONTENT_ENDPOINT;
-  }
-  return endpoint.replace(/\/api\/graphql$/, "/api/content");
+  return "https://obsidian.notebooksyncer.com/api/content";
 };
 
 // src/api.ts
-var baseUrl = (endpoint) => endpoint.replace(/\/api\/graphql$/, "");
+var baseUrl = (endpoint) => "https://obsidian.notebooksyncer.com";
 var searchCustomServerItems = async (endpoint, after, first, query, apiKey) => {
   const searchQuery = `
     query Search($after: Int, $first: Int, $query: String) {
@@ -15138,52 +15130,7 @@ var searchCustomServerItems = async (endpoint, after, first, query, apiKey) => {
   });
   return response.json;
 };
-var searchLocalItems = async (endpoint, after, first, query, apiKey) => {
-  const searchQuery = `
-    query Search($after: Int, $first: Int, $query: String) {
-      search(after: $after, first: $first, query: $query) {
-        items {
-          id
-          title
-          author
-          content
-          originalUrl
-          savedAt
-          updatedAt
-          isArchived
-          highlights {
-            id
-            quote
-            note
-          }
-        }
-        pageInfo {
-          hasNextPage
-          hasPreviousPage
-          startCursor
-          endCursor
-          totalCount
-        }
-      }
-    }
-  `;
-  const headers = {
-    "Content-Type": "application/json"
-  };
-  if (LOCAL_TEST_CONFIG.ENABLE_LOCAL_TEST && apiKey) {
-    headers["Authorization"] = `Bearer ${apiKey}`;
-  }
-  const response = await (0, import_obsidian.requestUrl)({
-    url: endpoint,
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      query: searchQuery,
-      variables: { after, first, query }
-    })
-  });
-  return response.json;
-};
+// 本地测试函数已移除
 var getContent = async (endpoint, apiKey, libraryItemIds) => {
   const response = await (0, import_obsidian.requestUrl)({
     url: getContentApiUrl(endpoint),
@@ -15229,91 +15176,30 @@ var fetchContentForItems = async (endpoint, apiKey, items) => {
   }));
 };
 var getItems = async (endpoint, apiKey, after = 0, first = 10, updatedAt = "", query = "", includeContent = false, format = "html") => {
-  console.log("\u{1F527} getItems\u8C03\u7528\u53C2\u6570:", { endpoint, apiKey, after, first, updatedAt, query });
-  if (LOCAL_TEST_CONFIG.ENABLE_LOCAL_TEST && (!apiKey || apiKey.trim() === "")) {
-    apiKey = LOCAL_TEST_CONFIG.TEST_API_KEY;
-    console.log("\u{1F527} \u672C\u5730\u6D4B\u8BD5\u6A21\u5F0F\uFF1A\u4F7F\u7528\u9ED8\u8BA4\u6D4B\u8BD5API\u5BC6\u94A5");
+  console.log("🔧 getItems调用参数:", { endpoint, apiKey, after, first, updatedAt, query });
+
+  const searchQuery = `${updatedAt ? "updated:" + updatedAt : ""} sort:saved-asc ${query}`.trim();
+  const response = await searchCustomServerItems("https://obsidian.notebooksyncer.com/api/graphql", after, first, searchQuery, apiKey);
+
+  if (!response.edges) {
+    console.error("🔧 response.edges is undefined, full response:", JSON.stringify(response, null, 2));
+    throw new Error("服务器响应格式错误：缺少edges字段");
   }
-  console.log("\u{1F527} \u68C0\u67E5endpoint:", endpoint);
-  console.log("\u{1F527} \u662F\u5426\u5305\u542Bobsidian.notebooksyncer.com:", endpoint.includes("obsidian.notebooksyncer.com"));
-  if (endpoint.includes("obsidian.notebooksyncer.com")) {
-    console.log("\u{1F527} \u4F7F\u7528\u81EA\u5B9A\u4E49\u670D\u52A1\u5668\u83B7\u53D6\u6570\u636E");
-    try {
-      const searchQuery = `${updatedAt ? "updated:" + updatedAt : ""} sort:saved-asc ${query}`.trim();
-      const response2 = await searchCustomServerItems(endpoint, after, first, searchQuery, apiKey);
-      console.log("\u{1F527} \u81EA\u5B9A\u4E49\u670D\u52A1\u5668\u54CD\u5E94:", response2);
-      console.log("\u{1F527} response.edges:", response2.edges);
-      console.log("\u{1F527} response.pageInfo:", response2.pageInfo);
-      if (!response2.edges) {
-        console.error("\u{1F527} response.edges is undefined, full response:", JSON.stringify(response2, null, 2));
-        throw new Error("\u670D\u52A1\u5668\u54CD\u5E94\u683C\u5F0F\u9519\u8BEF\uFF1A\u7F3A\u5C11edges\u5B57\u6BB5");
-      }
-      const items2 = response2.edges.map((e) => e.node);
-      const hasNextPage = response2.pageInfo.hasNextPage;
-      if (includeContent && items2.length > 0) {
-        try {
-          await fetchContentForItems(endpoint, apiKey, items2);
-        } catch (error) {
-          console.error("Error fetching content from custom server", error);
-        }
-      }
-      return [items2, hasNextPage];
-    } catch (error) {
-      console.error("\u81EA\u5B9A\u4E49\u670D\u52A1\u5668\u8FDE\u63A5\u5931\u8D25:", error);
-      throw error;
-    }
-  }
-  if (LOCAL_TEST_CONFIG.ENABLE_LOCAL_TEST) {
-    console.log("\u{1F527} \u4F7F\u7528\u672C\u5730Mock\u670D\u52A1\u5668\u83B7\u53D6\u6570\u636E");
-    try {
-      const searchQuery = `${updatedAt ? "updated:" + updatedAt : ""} sort:saved-asc ${query}`.trim();
-      const response2 = await searchLocalItems(endpoint, after, first, searchQuery, apiKey);
-      const items2 = response2.data.search.items;
-      const hasNextPage = response2.data.search.pageInfo.hasNextPage;
-      if (includeContent && items2.length > 0) {
-        try {
-          await fetchContentForItems(endpoint, apiKey, items2);
-        } catch (error) {
-          console.error("Error fetching content from local server", error);
-        }
-      }
-      return [items2, hasNextPage];
-    } catch (error) {
-      console.error("\u672C\u5730Mock\u670D\u52A1\u5668\u8FDE\u63A5\u5931\u8D25:", error);
-      throw error;
-    }
-  }
-  const omnivore = new import_api.Omnivore({
-    authToken: apiKey,
-    baseUrl: baseUrl(endpoint),
-    timeoutMs: 1e4
-  });
-  const response = await omnivore.items.search({
-    after,
-    first,
-    query: `${updatedAt ? "updated:" + updatedAt : ""} sort:saved-asc ${query}`,
-    includeContent: false,
-    format
-  });
+
   const items = response.edges.map((e) => e.node);
+  const hasNextPage = response.pageInfo.hasNextPage;
+
   if (includeContent && items.length > 0) {
     try {
-      await fetchContentForItems(endpoint, apiKey, items);
+      await fetchContentForItems("https://obsidian.notebooksyncer.com/api/graphql", apiKey, items);
     } catch (error) {
-      console.error("Error fetching content", error);
+      console.error("Error fetching content from server", error);
     }
   }
-  return [items, response.pageInfo.hasNextPage];
+
+  return [items, hasNextPage];
 };
-var deleteItem = async (endpoint, apiKey, articleId) => {
-  const omnivore = new import_api.Omnivore({
-    authToken: apiKey,
-    baseUrl: baseUrl(endpoint),
-    timeoutMs: 1e4
-  });
-  await omnivore.items.delete({ id: articleId });
-  return true;
-};
+// 删除功能已移除，使用线上服务不支持删除
 
 // src/settings/template.ts
 var import_lodash = __toESM(require_lodash());
@@ -16769,9 +16655,6 @@ var functionMap = {
   upperCaseFirst,
   formatDate: formatDateFunc
 };
-var getOmnivoreUrl = (item) => {
-  return `https://omnivore.app/me/${item.slug}`;
-};
 var renderFilename = (item, filename, dateFormat) => {
   const renderedFilename = render3(item, filename, dateFormat);
   return (0, import_lodash.truncate)(renderedFilename, {
@@ -16806,7 +16689,6 @@ var renderItemContent = async (item, template, highlightOrder, highlightManagerI
     } : null;
     return {
       text: formatHighlightQuote(highlight.quote, template, highlightRenderOption),
-      highlightUrl: `https://omnivore.app/me/${item.slug}#${highlight.id}`,
       highlightID: highlight.id.slice(0, 8),
       dateHighlighted: highlight.updatedAt ? formatDate(highlight.updatedAt, dateHighlightedFormat) : void 0,
       note: highlight.annotation ?? void 0,
@@ -16827,7 +16709,6 @@ var renderItemContent = async (item, template, highlightOrder, highlightManagerI
   const articleView = {
     id: item.id,
     title: item.title,
-    omnivoreUrl: `https://omnivore.app/me/${item.slug}`,
     siteName,
     originalUrl: item.originalArticleUrl || item.url,
     author: item.author || "unknown",
@@ -16909,7 +16790,6 @@ var render3 = (item, template, dateFormat) => {
     ...item,
     siteName: item.siteName || siteNameFromUrl(item.originalArticleUrl || item.url),
     author: item.author || "unknown",
-    omnivoreUrl: getOmnivoreUrl(item),
     originalUrl: item.originalArticleUrl || item.url,
     date: dateSaved,
     dateSaved,
@@ -18664,7 +18544,6 @@ var OmnivoreSettingTab = class extends import_obsidian6.PluginSettingTab {
     new import_obsidian6.Setting(containerEl).setName("\u524D\u7F6E\u5143\u6570\u636E / Front Matter").setDesc(createFragment((fragment) => {
       fragment.append("\u8F93\u5165\u7528\u4E8E\u7B14\u8BB0\u7684\u5143\u6570\u636E\uFF0C\u7528\u9017\u53F7\u5206\u9694\u3002\u60A8\u4E5F\u53EF\u4EE5\u4F7F\u7528\u81EA\u5B9A\u4E49\u522B\u540D\uFF0C\u683C\u5F0F\u4E3A metatdata::alias\uFF0C\u4F8B\u5982 date_saved::date\u3002 / Enter the metadata to be used in your note separated by commas. You can also use custom aliases in the format of metatdata::alias, e.g. date_saved::date. ", fragment.createEl("br"), fragment.createEl("br"), "\u53EF\u7528\u5143\u6570\u636E\u53C2\u8003 / Available metadata can be found at ", fragment.createEl("a", {
         text: "Reference",
-        href: "https://docs.omnivore.app/integrations/obsidian.html#front-matter"
       }), fragment.createEl("br"), fragment.createEl("br"), "\u5982\u679C\u8981\u4F7F\u7528\u81EA\u5B9A\u4E49\u524D\u7F6E\u5143\u6570\u636E\u6A21\u677F\uFF0C\u53EF\u5728\u4E0B\u65B9\u7684\u9AD8\u7EA7\u8BBE\u7F6E\u4E2D\u8F93\u5165 / If you want to use a custom front matter template, you can enter it below under the advanced settings");
     })).addTextArea((text) => {
       text.setPlaceholder("Enter the metadata").setValue(this.plugin.settings.frontMatterVariables.join(",")).onChange(async (value) => {
@@ -18677,7 +18556,6 @@ var OmnivoreSettingTab = class extends import_obsidian6.PluginSettingTab {
     new import_obsidian6.Setting(containerEl).setName("\u6587\u7AE0\u6A21\u677F / Article Template").setDesc(createFragment((fragment) => {
       fragment.append("\u8F93\u5165\u6587\u7AE0\u6E32\u67D3\u6A21\u677F / Enter template to render articles with ", fragment.createEl("a", {
         text: "Reference",
-        href: "https://docs.omnivore.app/integrations/obsidian.html#controlling-the-layout-of-the-data-imported-to-obsidian"
       }), fragment.createEl("br"), fragment.createEl("br"), "\u5982\u679C\u8981\u4F7F\u7528\u81EA\u5B9A\u4E49\u524D\u7F6E\u5143\u6570\u636E\u6A21\u677F\uFF0C\u53EF\u5728\u4E0B\u65B9\u7684\u9AD8\u7EA7\u8BBE\u7F6E\u4E2D\u8F93\u5165 / If you want to use a custom front matter template, you can enter it below under the advanced settings");
     })).addTextArea((text) => {
       text.setPlaceholder("Enter the template").setValue(this.plugin.settings.template).onChange(async (value) => {
@@ -18778,7 +18656,6 @@ var OmnivoreSettingTab = class extends import_obsidian6.PluginSettingTab {
     new import_obsidian6.Setting(advancedSettings).setName("\u524D\u7F6E\u5143\u6570\u636E\u6A21\u677F / Front Matter Template").setDesc(createFragment((fragment) => {
       fragment.append("\u8F93\u5165 YAML \u6A21\u677F\u6765\u6E32\u67D3\u524D\u7F6E\u5143\u6570\u636E / Enter YAML template to render the front matter with ", fragment.createEl("a", {
         text: "Reference",
-        href: "https://docs.omnivore.app/integrations/obsidian.html#front-matter-template"
       }), fragment.createEl("br"), fragment.createEl("br"), "\u6211\u4EEC\u5EFA\u8BAE\u60A8\u4F7F\u7528\u57FA\u672C\u8BBE\u7F6E\u4E0B\u7684\u524D\u7F6E\u5143\u6570\u636E\u90E8\u5206\u6765\u5B9A\u4E49\u5143\u6570\u636E / We recommend you to use Front Matter section under the basic settings to define the metadata.", fragment.createEl("br"), fragment.createEl("br"), "\u5982\u679C\u8BBE\u7F6E\u4E86\u6B64\u6A21\u677F\uFF0C\u5B83\u5C06\u8986\u76D6\u524D\u7F6E\u5143\u6570\u636E\uFF0C\u8BF7\u786E\u4FDD\u60A8\u7684\u6A21\u677F\u662F\u6709\u6548\u7684 YAML / If this template is set, it will override the Front Matter so please make sure your template is a valid YAML.");
     })).addTextArea((text) => {
       text.setPlaceholder("Enter the template").setValue(this.plugin.settings.frontMatterTemplate).onChange(async (value) => {
@@ -19047,7 +18924,7 @@ ${newContentWithoutFrontMatter}`);
         }
       }
       console.log("\u7B14\u8BB0\u540C\u6B65\u52A9\u624B\u540C\u6B65\u5B8C\u6210", this.settings.syncAt);
-      manualSync && new import_obsidian7.Notice("\u{1F389} Sync completed");
+      manualSync && new import_obsidian7.Notice("🎉 同步完成");
       setTimeout(() => {
         try {
           this.app.workspace.trigger("omnivore:sync-completed");
@@ -19058,8 +18935,15 @@ ${newContentWithoutFrontMatter}`);
         }
       }, 500);
     } catch (e) {
-      new import_obsidian7.Notice("\u83B7\u53D6\u6570\u636E\u5931\u8D25");
       console.error(e);
+      // 检查是否是API Key验证失败
+      if (e.message && (e.message.includes("401") || e.message.includes("Unauthorized") || e.message.includes("API key") || e.message.includes("unauthorized"))) {
+        new import_obsidian7.Notice("⚠️ API Key验证失败，请检查密钥是否正确，或者是否已向笔记同步助手发送过消息");
+      } else if (e.message && (e.message.includes("403") || e.message.includes("Forbidden"))) {
+        new import_obsidian7.Notice("⚠️ 访问被禁止，请确保已向笔记同步助手发送过消息以激活服务");
+      } else {
+        new import_obsidian7.Notice("获取数据失败");
+      }
     } finally {
       this.settings.syncing = false;
       await this.saveSettings();
