@@ -4,13 +4,11 @@
 
 ## 子项目情况
 
-文件夹 obsidian-plug 是ob 插件代码的位置
-
-文件夹plug-submit 是要公开提交的ob 插件
-
-文件夹 server 是ob 插件链接的服务端的位置
-
-文件夹wecomdocker 是拉取消息并存到数据库服务的位置
+- 文件夹 obsidian-plug 是ob 插件代码的位置
+- 文件夹plug-submit 是要公开ob 插件
+- 文件夹obsidian-releases 是向ob 官方提交社区插件
+- 文件夹 server 是ob 插件链接的服务端的位置
+- 文件夹wecomdocker 是拉取消息并存到数据库服务的位置
 
 # 环境情况
 
@@ -53,7 +51,9 @@
 
 ## OB 插件上线
 
-电脑里有github cli ，上线需要用frank@onenotes.app 账号
+电脑里有github cli ，上线需要用frank@onenotes.app 账号，如果发现不是这个账号需要退出登录并切换
+
+我希望保护我自己开发者账号的隐私，不在github 中contributors 显示是lzythebest
 
 ## CF
 

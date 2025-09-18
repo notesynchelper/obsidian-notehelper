@@ -23,7 +23,13 @@
       "Read(//c/Users/laizeyang/OneDrive/OWN/笔记同步助手/gate/wecomMessageDocker/makeimagev2/**)",
       "WebFetch(domain:developer.work.weixin.qq.com)",
       "Read(//c/Users/laizeyang/OneDrive/OWN/笔记同步助手/gate/wecomMessageDocker/**)",
-      "WebFetch(domain:docs.obsidian.md)"
+      "WebFetch(domain:docs.obsidian.md)",
+      "Bash(gh auth:*)",
+      "Bash(git push:*)",
+      "Bash(gh release create:*)",
+      "Bash(git checkout:*)",
+      "Bash(gh release:*)",
+      "WebFetch(domain:github.com)"
     ],
     "deny": [],
     "ask": []
