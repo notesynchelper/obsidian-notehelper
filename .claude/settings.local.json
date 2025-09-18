@@ -29,7 +29,8 @@
       "Bash(gh release create:*)",
       "Bash(git checkout:*)",
       "Bash(gh release:*)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Bash(npm run:*)"
     ],
     "deny": [],
     "ask": []

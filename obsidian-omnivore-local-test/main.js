@@ -16545,9 +16545,6 @@ var setOrUpdateHighlightColors = (colorSetting) => {
 var DEFAULT_TEMPLATE = `# {{{title}}}
 #Omnivore
 
-[Read on Omnivore]({{{omnivoreUrl}}})
-[Read Original]({{{originalUrl}}})
-
 {{#highlights.length}}
 ## Highlights
 
