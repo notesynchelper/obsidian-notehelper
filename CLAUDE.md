@@ -1,6 +1,7 @@
 # 项目说明
 
-这个项目是一个obsidian 插件及服务端项目，插件提供的是将数据加载到obsidian 里的功能
+* 这个项目是一个obsidian 插件及服务端项目，插件提供的是将数据加载到obsidian 里的功能
+* 以最小化单元代码做变更
 
 ## 子项目情况
 
@@ -56,7 +57,8 @@
 - 更新的插件应该是放在 文件夹plug-submit 下
 - 电脑里有github cli ，上线需要用frank@onenotes.app 账号，如果发现不是这个账号需要退出登录并切换
 - 我希望保护我自己开发者账号的隐私，不在github 中contributors 显示是lzythebest
-- 项目向官方提交的pr 是 [Add NoteHelper (笔记同步助手) - Community Plugin Submission by notesynchelper · Pull Request #7839 · obsidianmd/obsidian-releases](https://github.com/obsidianmd/obsidian-releases/pull/7839)
+- 提交pr 要按照模板进行 https://raw.githubusercontent.com/obsidianmd/obsidian-releases/refs/heads/master/.github/PULL_REQUEST_TEMPLATE/plugin.md
+- 项目向官方提交的pr 是https://github.com/obsidianmd/obsidian-releases/pull/7849
 
 ## CF
 

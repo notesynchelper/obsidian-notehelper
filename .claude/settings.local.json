@@ -31,7 +31,11 @@
       "Bash(gh release:*)",
       "WebFetch(domain:github.com)",
       "Bash(npm run:*)",
-      "Bash(gh pr comment:*)"
+      "Bash(gh pr comment:*)",
+      "Bash(gh pr create:*)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(gh pr close:*)",
+      "Bash(git pull:*)"
     ],
     "deny": [],
     "ask": []

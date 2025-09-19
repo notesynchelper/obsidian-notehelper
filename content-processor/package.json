@@ -1,0 +1,21 @@
+{
+  "name": "content-processor",
+  "version": "1.0.0",
+  "description": "Content processor for WeChat messages using Azure Service Bus",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node index.js",
+    "test": "node test.js",
+    "test-extractor": "node test-extractor.js",
+    "test-multiple": "node test.js --multiple"
+  },
+  "keywords": ["azure", "servicebus", "content-processing", "wechat"],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@azure/service-bus": "^7.9.4",
+    "axios": "^1.6.0",
+    "cheerio": "1.0.0-rc.10"
+  }
+}
