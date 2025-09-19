@@ -35,7 +35,8 @@
       "Bash(gh pr create:*)",
       "WebFetch(domain:raw.githubusercontent.com)",
       "Bash(gh pr close:*)",
-      "Bash(git pull:*)"
+      "Bash(git pull:*)",
+      "Bash(echo:*)"
     ],
     "deny": [],
     "ask": []
