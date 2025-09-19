@@ -32,7 +32,7 @@ class ContentExtractor {
 
         this.urlPatternDict = {
             "azure": ".azurewebsites.net/get_content_uni",
-            "cf": ".ilzy.workers.dev/get_content_uni"
+            "cf": ".clipfx.app/get_content_uni"
         };
 
         // 限流相关

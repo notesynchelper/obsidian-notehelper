@@ -36,7 +36,9 @@
       "WebFetch(domain:raw.githubusercontent.com)",
       "Bash(gh pr close:*)",
       "Bash(git pull:*)",
-      "Bash(echo:*)"
+      "Bash(echo:*)",
+      "Bash(npm test)",
+      "Bash(tasklist:*)"
     ],
     "deny": [],
     "ask": []

@@ -106,12 +106,36 @@ class ContentProcessor {
                 return;
             }
 
-            // 处理链接消息
-            await this.processLinkMessage(messageBody);
+            // 获取重试次数
+            const retryCount = messageBody.retryCount || 0;
+            console.log(`Processing message, retry count: ${retryCount}`);
 
-            // 完成消息处理
-            await receiver.completeMessage(message);
-            console.log('Message processed successfully:', message.messageId);
+            try {
+                // 处理链接消息
+                await this.processLinkMessage(messageBody);
+
+                // 完成消息处理
+                await receiver.completeMessage(message);
+                console.log('Message processed successfully:', message.messageId);
+
+            } catch (processingError) {
+                console.error('Error processing link message:', processingError);
+
+                // 如果是内容提取失败且重试次数未超限，放回原队列重试
+                if (processingError.message.includes('Content extraction failed') && retryCount < 3) {
+                    console.log(`Content extraction failed, retrying (${retryCount + 1}/3)`);
+                    await this.retryMessage(messageBody, receiver, retryCount + 1);
+                    await receiver.completeMessage(message);
+                } else {
+                    // 超过重试次数或其他错误，发送到DLQ
+                    const reason = retryCount >= 3 ?
+                        `Max retries exceeded (${retryCount})` :
+                        `Processing error: ${processingError.message}`;
+                    console.log(`Sending to DLQ: ${reason}`);
+                    await this.sendToDLQ(message, reason);
+                    await receiver.completeMessage(message);
+                }
+            }
 
         } catch (error) {
             console.error('Error handling message:', error);
@@ -195,6 +219,10 @@ class ContentProcessor {
 
         } catch (error) {
             console.error('Error processing link message:', error);
+            // 如果是内容提取失败，抛出特定错误以便重试处理
+            if (!extractedContent.success) {
+                throw new Error(`Content extraction failed: ${extractedContent.error}`);
+            }
             throw error;
         }
     }
@@ -216,6 +244,15 @@ class ContentProcessor {
 
             if (response.status === 200 || response.status === 201) {
                 console.log('Article created successfully:', response.data.data?.id);
+
+                // 发送企微通知
+                try {
+                    await this.sendWecomNotification(userOpenId, '笔记已同步', '新内容已添加到Obsidian');
+                } catch (notificationError) {
+                    console.error('Failed to send WeChat notification:', notificationError.message);
+                    // 通知失败不影响主流程
+                }
+
                 return response.data;
             } else {
                 throw new Error(`Unexpected response status: ${response.status}`);
@@ -229,6 +266,38 @@ class ContentProcessor {
                 console.error('Network error calling backend API:', error.message);
                 throw new Error(`Network error: ${error.message}`);
             }
+        }
+    }
+
+    async retryMessage(messageBody, receiver, retryCount) {
+        try {
+            // 添加重试计数到消息体
+            const retryMessageBody = {
+                ...messageBody,
+                retryCount: retryCount
+            };
+
+            // 根据原接收器确定队列类型并重新发送
+            let queueName;
+            if (receiver === this.vipReceiver) {
+                queueName = this.queues.vip;
+            } else if (receiver === this.trialReceiver) {
+                queueName = this.queues.trial;
+            } else {
+                queueName = this.queues.normal;
+            }
+
+            const sender = this.serviceBusClient.createSender(queueName);
+            await sender.sendMessages({
+                body: JSON.stringify(retryMessageBody)
+            });
+            await sender.close();
+
+            console.log(`Message sent back to ${queueName} for retry ${retryCount}/3`);
+
+        } catch (error) {
+            console.error('Error retrying message:', error);
+            throw error;
         }
     }
 
@@ -265,6 +334,32 @@ class ContentProcessor {
             console.log('Content Processor closed successfully');
         } catch (error) {
             console.error('Error closing Content Processor:', error);
+        }
+    }
+
+    // 发送企微通知消息
+    async sendWecomNotification(openId, title = '笔记已同步', content = '可在Ob中刷新') {
+        try {
+            const pushData = {
+                template: {
+                    open_id: openId,
+                    url: 'https://obsidian.notebooksyncer.com',
+                    template_id: 'UkDxRNqpjp-kywUb4izWMKlY5KQEEcLfXQXZTXPSES0',
+                    data: {
+                        phrase15: { value: title },
+                        thing19: { value: content }
+                    }
+                }
+            };
+
+            const response = await axios.post('http://lzynodered2.azurewebsites.net/lzyapi/mpmessage', pushData, {
+                timeout: 5000 // 5秒超时
+            });
+            console.log('企微通知发送成功:', openId);
+            return response.data;
+        } catch (error) {
+            console.error('发送企微通知失败:', error.message);
+            throw error;
         }
     }
 }
