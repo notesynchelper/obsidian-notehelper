@@ -247,7 +247,7 @@ class ContentProcessor {
 
                 // 发送企微通知
                 try {
-                    await this.sendWecomNotification(userOpenId, '笔记已同步', '新内容已添加到Obsidian');
+                    await this.sendWecomNotification(userOpenId, '笔记已同步', '可在Obsidian中刷新');
                 } catch (notificationError) {
                     console.error('Failed to send WeChat notification:', notificationError.message);
                     // 通知失败不影响主流程
@@ -338,7 +338,7 @@ class ContentProcessor {
     }
 
     // 发送企微通知消息
-    async sendWecomNotification(openId, title = '笔记已同步', content = '可在Ob中刷新') {
+    async sendWecomNotification(openId, title = '笔记已同步', content = '可在Obsidian中刷新') {
         try {
             const pushData = {
                 template: {

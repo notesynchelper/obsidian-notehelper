@@ -38,7 +38,8 @@
       "Bash(git pull:*)",
       "Bash(echo:*)",
       "Bash(npm test)",
-      "Bash(tasklist:*)"
+      "Bash(tasklist:*)",
+      "Bash(timeout:*)"
     ],
     "deny": [],
     "ask": []
