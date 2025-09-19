@@ -1,3 +1,5 @@
+const axios = require('axios');
+
 class ContentExtractor {
     constructor() {
         this.options = [
