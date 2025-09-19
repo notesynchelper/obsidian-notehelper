@@ -1,4 +1,5 @@
 const axios = require('axios');
+const TurndownService = require('turndown');
 
 class ContentExtractor {
     constructor() {
@@ -38,6 +39,15 @@ class ContentExtractor {
         // 限流相关
         this.requestHistory = [];
         this.maxRequestsPerMinute = 2;
+
+        // 初始化 HTML 转 Markdown 转换器
+        this.turndownService = new TurndownService({
+            headingStyle: 'atx',
+            hr: '---',
+            bulletListMarker: '-',
+            codeBlockStyle: 'fenced',
+            fence: '```'
+        });
     }
 
     selectEndpoint() {
@@ -80,6 +90,23 @@ class ContentExtractor {
         this.requestHistory.push(Date.now());
     }
 
+    convertHtmlToMarkdown(htmlContent) {
+        if (!htmlContent || typeof htmlContent !== 'string') {
+            return htmlContent;
+        }
+
+        try {
+            // 转换 HTML 到 Markdown
+            const markdown = this.turndownService.turndown(htmlContent);
+            console.log('HTML to Markdown conversion completed');
+            return markdown;
+        } catch (error) {
+            console.error('HTML to Markdown conversion failed:', error.message);
+            // 如果转换失败，返回原始内容
+            return htmlContent;
+        }
+    }
+
     async waitForRateLimit() {
         if (this.canMakeRequest()) {
             return;
@@ -118,10 +145,24 @@ class ContentExtractor {
 
             if (response.status === 200 && response.data) {
                 console.log('Content extraction successful');
+
+                // 处理返回的数据，将 HTML 内容转换为 Markdown
+                const processedData = { ...response.data };
+
+                // 如果有 content 字段，转换为 Markdown
+                if (processedData.content) {
+                    processedData.content = this.convertHtmlToMarkdown(processedData.content);
+                }
+
+                // 如果有 text 字段，也转换为 Markdown（备用字段）
+                if (processedData.text) {
+                    processedData.text = this.convertHtmlToMarkdown(processedData.text);
+                }
+
                 return {
                     success: true,
                     spiderName: endpoint.spiderName,
-                    ...response.data
+                    ...processedData
                 };
             } else {
                 console.log('Content extraction failed - no data');

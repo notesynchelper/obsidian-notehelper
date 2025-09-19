@@ -10,12 +10,18 @@
     "test-extractor": "node test-extractor.js",
     "test-multiple": "node test.js --multiple"
   },
-  "keywords": ["azure", "servicebus", "content-processing", "wechat"],
+  "keywords": [
+    "azure",
+    "servicebus",
+    "content-processing",
+    "wechat"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {
     "@azure/service-bus": "^7.9.4",
     "axios": "^1.6.0",
-    "cheerio": "1.0.0-rc.10"
+    "cheerio": "1.0.0-rc.10",
+    "turndown": "^7.2.1"
   }
 }
