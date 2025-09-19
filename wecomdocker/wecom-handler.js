@@ -1,3 +1,107 @@
+const { ServiceBusClient } = require('@azure/service-bus');
+
+// Service Bus 配置
+const SERVICE_BUS_CONNECTION_STRING = process.env.AZ_BUS_CP_CS;
+let serviceBusClient;
+
+// 初始化 Service Bus 客户端
+function initServiceBus() {
+    if (!SERVICE_BUS_CONNECTION_STRING) {
+        console.log('未设置 AZ_BUS_CP_CS 环境变量，跳过 Service Bus 初始化');
+        return;
+    }
+
+    try {
+        serviceBusClient = new ServiceBusClient(SERVICE_BUS_CONNECTION_STRING);
+        console.log('Service Bus 客户端初始化成功');
+    } catch (error) {
+        console.error('Service Bus 客户端初始化失败:', error);
+    }
+}
+
+// 发送消息到 Service Bus 队列
+async function sendToServiceBus(queueName, messageBody) {
+    if (!serviceBusClient) {
+        console.log('Service Bus 客户端未初始化，跳过发送消息');
+        return false;
+    }
+
+    try {
+        const sender = serviceBusClient.createSender(queueName);
+        await sender.sendMessages({
+            body: JSON.stringify(messageBody),
+            contentType: 'application/json'
+        });
+        await sender.close();
+        console.log(`消息成功发送到队列 ${queueName}`);
+        return true;
+    } catch (error) {
+        console.error(`发送消息到队列 ${queueName} 失败:`, error);
+        return false;
+    }
+}
+
+// 根据用户配置确定队列优先级
+function determineQueuePriority(userConfig) {
+    // 检查用户是否为VIP
+    if (userConfig && userConfig.find && userConfig.find(c => c.pt === 'vip_info')) {
+        return 'link-vip';
+    }
+    // 默认为普通队列
+    return 'link-normal';
+}
+
+// 处理链接消息并发送到消息队列
+async function processLinkMessage(msg, userInfo) {
+    try {
+        let linkData = {};
+
+        // 解析链接数据
+        if (msg.link) {
+            linkData = msg.link;
+        } else if (msg.content) {
+            linkData = typeof msg.content === 'string' ? JSON.parse(msg.content) : msg.content;
+        }
+
+        // 构造符合 MESSAGE_FORMAT.md 规范的消息
+        const queueMessage = {
+            msgid: msg.msgid || `link_${Date.now()}`,
+            action: "send",
+            from: userInfo.openId,
+            tolist: msg.tolist || [],
+            roomid: msg.roomid || "",
+            msgtime: msg.msgtime || Date.now(),
+            msgtype: "link",
+            link: {
+                title: linkData.title || "",
+                description: linkData.description || linkData.desc || "",
+                link_url: linkData.link_url || linkData.url || "",
+                image_url: linkData.picurl || linkData.image_url || ""
+            },
+            config: {
+                config: {
+                    raw_html: userInfo.config?.raw_html || false
+                }
+            }
+        };
+
+        // 确定队列优先级
+        const queueName = determineQueuePriority(userInfo.userConfigs);
+
+        // 发送到消息队列
+        const success = await sendToServiceBus(queueName, queueMessage);
+
+        if (success) {
+            console.log(`链接消息已发送到队列 ${queueName}:`, queueMessage.msgid);
+        }
+
+        return success;
+    } catch (error) {
+        console.error('处理链接消息失败:', error);
+        return false;
+    }
+}
+
 const privateKey =
 "-----BEGIN PRIVATE KEY-----\n" +
 "MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCskSPYVpFHElMy\n" +
@@ -98,9 +202,10 @@ function parseAndFilterMessages(messages) {
     return filteredMessages;
 }
 
-// 分类消息：将链接消息也当作文本消息处理
+// 分类消息：将链接消息分离出来单独处理
 function categorizeMessages(messages) {
     const textMessages = [];
+    const linkMessages = [];
     const processedMessages = [];
 
     messages.forEach(msg => {
@@ -108,9 +213,8 @@ function categorizeMessages(messages) {
         if (msg.msgtype === 'text') {
             textMessages.push(msg);
         } else if (msg.msgtype === 'link') {
-            // 将链接消息转换为文本消息格式
-            const linkAsText = convertLinkToText(msg);
-            textMessages.push(linkAsText);
+            // 链接消息单独处理，发送到消息队列
+            linkMessages.push(msg);
         } else {
             // 其他类型消息暂时当作文本处理
             console.log(`未知消息类型 ${msg.msgtype}, 当作文本处理`);
@@ -119,7 +223,7 @@ function categorizeMessages(messages) {
         processedMessages.push(msg);
     });
 
-    return { textMessages, processedMessages };
+    return { textMessages, linkMessages, processedMessages };
 }
 
 // 处理文本类型消息
@@ -266,6 +370,10 @@ async function processWecomMessages(corpid, secret, seq = 0, minMsgTime = 0) {
 }
 
 module.exports = {
+    initServiceBus,
+    processLinkMessage,
+    determineQueuePriority,
+    sendToServiceBus,
     getWecomMessages,
     parseAndFilterMessages,
     categorizeMessages,

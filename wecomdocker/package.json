@@ -4,11 +4,11 @@
   "description": "企微消息拉取处理服务，用于同步消息到Obsidian",
   "main": "server.js",
   "dependencies": {
-    "express": "^4.19.2",
+    "@azure/cosmos": "^4.0.0",
+    "@azure/service-bus": "^7.9.5",
     "axios": "^1.6.8",
-    "@azure/cosmos": "^4.0.0"
+    "express": "^4.19.2"
   },
-  "devDependencies": {},
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node server.js",

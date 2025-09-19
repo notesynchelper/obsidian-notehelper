@@ -2,6 +2,8 @@ const express = require('express');
 const axios = require('axios');
 const { CosmosClient } = require('@azure/cosmos');
 const {
+    initServiceBus,
+    processLinkMessage,
     getWecomMessages,
     parseAndFilterMessages,
     categorizeMessages,
@@ -416,6 +418,7 @@ async function resolveUserInfo(wecomFrom) {
         return {
             openId,
             config,
+            userConfigs, // 添加完整的用户配置列表
             wecomFrom
         };
     } catch (error) {
@@ -459,8 +462,8 @@ app.get('/', async (req, res) => {
             console.log(`过滤后消息数量: ${filteredMessages.length}`);
 
             // 分类消息
-            const { textMessages, processedMessages } = categorizeMessages(filteredMessages);
-            console.log(`文本消息: ${textMessages.length}, 处理消息: ${processedMessages.length}`);
+            const { textMessages, linkMessages, processedMessages } = categorizeMessages(filteredMessages);
+            console.log(`文本消息: ${textMessages.length}, 链接消息: ${linkMessages.length}, 处理消息: ${processedMessages.length}`);
 
             let processedCount = 0;
 
@@ -468,6 +471,22 @@ app.get('/', async (req, res) => {
             for (const msg of textMessages) {
                 const success = await processMessage(msg, 'text');
                 if (success) processedCount++;
+            }
+
+            // 处理链接消息 - 发送到消息队列
+            for (const msg of linkMessages) {
+                const userInfo = await resolveUserInfo(msg.from);
+                if (userInfo) {
+                    const success = await processLinkMessage(msg, userInfo);
+                    if (success) {
+                        processedCount++;
+                        // 为链接消息生成唯一标识并标记为已处理，避免重复处理
+                        const uniqueKey = `${msg.from}_${msg.msgtime}_${msg.msgid || Date.now()}`;
+                        await markMessageProcessed(uniqueKey);
+                    }
+                } else {
+                    console.log('无法解析链接消息用户信息:', msg.from);
+                }
             }
 
             // 累计统计
@@ -521,6 +540,7 @@ const port = process.env.PORT || 8000;
 
 async function startServer() {
     await initCosmosDB();
+    initServiceBus();
 
     app.listen(port, () => {
         console.log(`企微Obsidian同步服务启动成功，端口: ${port}`);

@@ -20,6 +20,8 @@
 
 调试podman 命令参考 podman exec wecom-sync ls -la .
 
+本地构建容器等等都使用podman，镜像推送是推送到dockerhub
+
 # 修改代码
 
 修改代码前需要先检查目录是否已经git commit 如果没有需要先commit 再进行修改
