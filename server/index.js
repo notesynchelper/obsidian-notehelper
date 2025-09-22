@@ -3,6 +3,7 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 const { mockData } = require('./mockData');
 const { DatabaseManager } = require('./database');
+const { TimezoneUtils } = require('./timezone-utils');
 const { v4: uuidv4 } = require('uuid');
 
 const app = express();
@@ -92,10 +93,10 @@ app.post('/api/graphql', authenticateApiKey, async (req, res) => {
             filters.hasHighlights = true;
           }
 
-          // 时间戳过滤
-          const updatedAtMatch = searchQuery.match(/updated:([\d\-T:.Z]+)/);
-          if (updatedAtMatch) {
-            filters.updatedAfter = updatedAtMatch[1];
+          // 时间戳过滤 - 使用时区工具进行转换
+          const updatedAfterUTC = TimezoneUtils.parseUpdatedAtFilter(searchQuery);
+          if (updatedAfterUTC) {
+            filters.updatedAfter = updatedAfterUTC;
           }
         }
 
@@ -115,10 +116,10 @@ app.post('/api/graphql', authenticateApiKey, async (req, res) => {
             filteredArticles = filteredArticles.filter(article => article.highlights.length > 0);
           }
 
-          // 时间戳过滤
-          const updatedAtMatch = searchQuery.match(/updated:([\d\-T:.Z]+)/);
-          if (updatedAtMatch) {
-            const updatedAtFilter = new Date(updatedAtMatch[1]);
+          // 时间戳过滤 - 使用时区工具进行转换
+          const updatedAfterUTC = TimezoneUtils.parseUpdatedAtFilter(searchQuery);
+          if (updatedAfterUTC) {
+            const updatedAtFilter = new Date(updatedAfterUTC);
             filteredArticles = filteredArticles.filter(article =>
               new Date(article.updatedAt) >= updatedAtFilter
             );
