@@ -15029,8 +15029,10 @@ var import_obsidian = require("obsidian");
 
 // src/build-config.ts
 var isLocalTest = false;
+var isDevelopment = false;
 var BUILD_CONFIG = {
   IS_LOCAL_TEST: isLocalTest,
+  IS_DEVELOPMENT: isDevelopment,
   LOCAL_API_BASE_URL: "http://localhost:3001",
   VERSION: "1.10.4-local-test"
 };
@@ -15313,6 +15315,36 @@ var deleteItem = async (endpoint, apiKey, articleId) => {
   await omnivore.items.delete({ id: articleId });
   return true;
 };
+
+// src/logger.ts
+var isDevelopment2 = BUILD_CONFIG.IS_DEVELOPMENT;
+var _Logger = class {
+  static setDevMode(devMode) {
+    _Logger.isDev = devMode;
+  }
+  static debug(...args) {
+    if (_Logger.isDev) {
+      console.log(...args);
+    }
+  }
+  static info(...args) {
+    if (_Logger.isDev) {
+      console.info(...args);
+    }
+  }
+  static warn(...args) {
+    console.warn(...args);
+  }
+  static error(...args) {
+    console.error(...args);
+  }
+};
+var Logger = _Logger;
+Logger.isDev = isDevelopment2;
+var log = Logger.debug;
+var logInfo = Logger.info;
+var logWarn = Logger.warn;
+var logError = Logger.error;
 
 // src/settings/template.ts
 var import_lodash = __toESM(require_lodash());
@@ -18838,7 +18870,9 @@ var OmnivorePlugin = class extends import_obsidian7.Plugin {
       id: "deleteArticle",
       name: "Delete Current Article from Omnivore",
       callback: async () => {
-        await this.deleteCurrentItem(this.app.workspace.getActiveFile());
+        const { activeEditor } = this.app.workspace;
+        const file = activeEditor?.file || null;
+        await this.deleteCurrentItem(file);
       }
     });
     this.addCommand({
@@ -18873,15 +18907,15 @@ var OmnivorePlugin = class extends import_obsidian7.Plugin {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
     if (this.settings.filter === "ADVANCED") {
       this.settings.filter = "ALL";
-      console.log("obsidian-omnivore: advanced filter is replaced with all filter");
+      log("obsidian-omnivore: advanced filter is replaced with all filter");
       const customQuery = this.settings.customQuery;
       this.settings.customQuery = `in:all ${customQuery ? `(${customQuery})` : ""}`;
-      console.log(`obsidian-omnivore: custom query is set to ${this.settings.customQuery}`);
+      log(`obsidian-omnivore: custom query is set to ${this.settings.customQuery}`);
       this.saveSettings();
     }
     if (!this.settings.customQuery) {
       this.settings.customQuery = getQueryFromFilter(this.settings.filter);
-      console.log(`obsidian-omnivore: custom query is set to ${this.settings.customQuery}`);
+      log(`obsidian-omnivore: custom query is set to ${this.settings.customQuery}`);
       this.saveSettings();
     }
     setOrUpdateHighlightColors(this.settings.highlightColorMapping);
@@ -18892,6 +18926,7 @@ var OmnivorePlugin = class extends import_obsidian7.Plugin {
   async scheduleSync() {
     if (this.settings.intervalId > 0) {
       window.clearInterval(this.settings.intervalId);
+      this.settings.intervalId = 0;
     }
     const frequency = this.settings.frequency;
     if (frequency > 0) {
@@ -18899,7 +18934,6 @@ var OmnivorePlugin = class extends import_obsidian7.Plugin {
         await this.fetchOmnivore(false);
       }, frequency * 60 * 1e3);
       this.settings.intervalId = intervalId;
-      await this.saveSettings();
       this.registerInterval(intervalId);
     }
   }
@@ -18947,68 +18981,56 @@ var OmnivorePlugin = class extends import_obsidian7.Plugin {
     this.settings.syncing = true;
     await this.saveSettings();
     try {
-      console.log(`\u7B14\u8BB0\u540C\u6B65\u52A9\u624B\u5F00\u59CB\u540C\u6B65\uFF0C\u81EA: '${syncAt}'`);
+      log(`\u7B14\u8BB0\u540C\u6B65\u52A9\u624B\u5F00\u59CB\u540C\u6B65\uFF0C\u81EA: '${syncAt}'`);
       manualSync && new import_obsidian7.Notice("\u{1F680} \u6B63\u5728\u83B7\u53D6\u6570\u636E...");
-      console.log("\u{1F527} \u5F00\u59CB\u89E3\u6790\u524D\u7AEF\u6A21\u677F");
+      log("\u{1F527} \u5F00\u59CB\u89E3\u6790\u524D\u7AEF\u6A21\u677F");
       frontMatterTemplate && preParseTemplate(frontMatterTemplate);
-      console.log("\u{1F527} \u5F00\u59CB\u89E3\u6790\u4E3B\u6A21\u677F");
+      log("\u{1F527} \u5F00\u59CB\u89E3\u6790\u4E3B\u6A21\u677F");
       const templateSpans = preParseTemplate(template);
-      console.log("\u{1F527} \u6A21\u677F\u89E3\u6790\u5B8C\u6210\uFF0CtemplateSpans:", templateSpans);
+      log("\u{1F527} \u6A21\u677F\u89E3\u6790\u5B8C\u6210\uFF0CtemplateSpans:", templateSpans);
       const includeContent = templateSpans.some((templateSpan) => templateSpan[1] === "content");
-      console.log("\u{1F527} includeContent:", includeContent);
+      log("\u{1F527} includeContent:", includeContent);
       const includeFileAttachment = templateSpans.some((templateSpan) => templateSpan[1] === "fileAttachment");
-      console.log("\u{1F527} includeFileAttachment:", includeFileAttachment);
+      log("\u{1F527} includeFileAttachment:", includeFileAttachment);
       const size = 15;
-      console.log("\u{1F527} \u51C6\u5907\u5F00\u59CB\u5FAA\u73AF\u83B7\u53D6\u6570\u636E");
+      log("\u{1F527} \u51C6\u5907\u5F00\u59CB\u5FAA\u73AF\u83B7\u53D6\u6570\u636E");
       for (let after = 0; ; after += size) {
-        console.log(`\u{1F527} \u5F00\u59CB\u83B7\u53D6\u7B2C ${after / size + 1} \u6279\u6570\u636E`);
+        log(`\u{1F527} \u5F00\u59CB\u83B7\u53D6\u7B2C ${after / size + 1} \u6279\u6570\u636E`);
         const [items, hasNextPage] = await getItems(this.settings.endpoint, apiKey, after, size, parseDateTime(syncAt).toISO() || void 0, customQuery, includeContent, "highlightedMarkdown");
-        console.log(`\u{1F527} \u6210\u529F\u83B7\u53D6\u6570\u636E\uFF0Citems\u6570\u91CF: ${items.length}\uFF0ChasNextPage: ${hasNextPage}`);
-        console.log(`\u{1F527} \u51C6\u5907\u5F00\u59CB\u5904\u7406\u6587\u7AE0`);
+        log(`\u{1F527} \u6210\u529F\u83B7\u53D6\u6570\u636E\uFF0Citems\u6570\u91CF: ${items.length}\uFF0ChasNextPage: ${hasNextPage}`);
+        log(`\u{1F527} \u51C6\u5907\u5F00\u59CB\u5904\u7406\u6587\u7AE0`);
         for (const item of items) {
-          console.log(`\u{1F527} \u5F00\u59CB\u5904\u7406\u6587\u7AE0: ${item.title}`);
+          log(`\u{1F527} \u5F00\u59CB\u5904\u7406\u6587\u7AE0: ${item.title}`);
           const folderName = replaceIllegalCharsFolder((0, import_obsidian7.normalizePath)(render3(item, folder, this.settings.folderDateFormat)));
-          console.log(`\u{1F527} \u6587\u4EF6\u5939\u540D\u79F0: ${folderName}`);
+          log(`\u{1F527} \u6587\u4EF6\u5939\u540D\u79F0: ${folderName}`);
           const omnivoreFolder = this.app.vault.getAbstractFileByPath(folderName);
           if (!(omnivoreFolder instanceof import_obsidian7.TFolder)) {
             try {
-              console.log(`\u{1F527} \u521B\u5EFA\u6587\u4EF6\u5939: ${folderName}`);
+              log(`\u{1F527} \u521B\u5EFA\u6587\u4EF6\u5939: ${folderName}`);
               await this.app.vault.createFolder(folderName);
-              console.log(`\u{1F527} \u6587\u4EF6\u5939\u521B\u5EFA\u6210\u529F: ${folderName}`);
+              log(`\u{1F527} \u6587\u4EF6\u5939\u521B\u5EFA\u6210\u529F: ${folderName}`);
             } catch (error) {
               if (error.toString().includes("Folder already exists") || error.toString().includes("already exists")) {
-                console.log(`\u{1F527} \u6587\u4EF6\u5939\u5DF2\u5B58\u5728: ${folderName}`);
-                try {
-                  console.log(`\u{1F527} \u68C0\u6D4B\u5230\u53EF\u80FD\u7684\u6587\u4EF6\u5939\u72B6\u6001\u4E0D\u4E00\u81F4\uFF0C\u5F3A\u5236\u5237\u65B0: ${folderName}`);
-                  await this.forceRebuildFileIndex(folderName);
-                  const refetchedFolder = this.app.vault.getAbstractFileByPath(folderName);
-                  if (!(refetchedFolder instanceof import_obsidian7.TFolder)) {
-                    console.log(`\u{1F527} \u6587\u4EF6\u5939\u72B6\u6001\u4E0D\u4E00\u81F4\uFF0C\u5C1D\u8BD5\u5F3A\u5236\u5237\u65B0\u6587\u4EF6\u6D4F\u89C8\u5668`);
-                    this.refreshFileExplorer();
-                  } else {
-                    console.log(`\u{1F527} \u6587\u4EF6\u5939\u72B6\u6001\u5DF2\u540C\u6B65: ${folderName}`);
-                  }
-                } catch (refreshError) {
-                  console.log(`\u{1F527} \u6587\u4EF6\u5939\u72B6\u6001\u5237\u65B0\u5931\u8D25\uFF0C\u4F46\u4E0D\u5F71\u54CD\u7EE7\u7EED\u5904\u7406: ${refreshError}`);
-                }
+                log(`\u{1F527} \u6587\u4EF6\u5939\u5DF2\u5B58\u5728: ${folderName}`);
+                this.app.vault.trigger("changed");
               } else {
-                console.error(`\u{1F527} \u6587\u4EF6\u5939\u521B\u5EFA\u5931\u8D25: ${folderName}`, error);
+                logError(`\u{1F527} \u6587\u4EF6\u5939\u521B\u5EFA\u5931\u8D25: ${folderName}`, error);
                 throw error;
               }
             }
           } else {
-            console.log(`\u{1F527} \u6587\u4EF6\u5939\u5DF2\u5B58\u5728: ${folderName}`);
+            log(`\u{1F527} \u6587\u4EF6\u5939\u5DF2\u5B58\u5728: ${folderName}`);
           }
-          console.log(`\u{1F527} \u5F00\u59CB\u5904\u7406\u6587\u4EF6\u9644\u4EF6`);
+          log(`\u{1F527} \u5F00\u59CB\u5904\u7406\u6587\u4EF6\u9644\u4EF6`);
           const fileAttachment = item.pageType === "FILE" && includeFileAttachment ? await this.downloadFileAsAttachment(item) : void 0;
-          console.log(`\u{1F527} \u6587\u4EF6\u9644\u4EF6\u5904\u7406\u5B8C\u6210`);
-          console.log(`\u{1F527} \u5F00\u59CB\u6E32\u67D3\u5185\u5BB9`);
+          log(`\u{1F527} \u6587\u4EF6\u9644\u4EF6\u5904\u7406\u5B8C\u6210`);
+          log(`\u{1F527} \u5F00\u59CB\u6E32\u67D3\u5185\u5BB9`);
           const content = await renderItemContent(item, template, highlightOrder, this.settings.enableHighlightColorRender ? this.settings.highlightManagerId : void 0, this.settings.dateHighlightedFormat, this.settings.dateSavedFormat, isSingleFile, frontMatterVariables, frontMatterTemplate, fileAttachment);
-          console.log(`\u{1F527} \u5185\u5BB9\u6E32\u67D3\u5B8C\u6210`);
+          log(`\u{1F527} \u5185\u5BB9\u6E32\u67D3\u5B8C\u6210`);
           const customFilename = replaceIllegalCharsFile(renderFilename(item, filename, this.settings.filenameDateFormat));
           const pageName = `${folderName}/${customFilename}.md`;
           const normalizedPath = (0, import_obsidian7.normalizePath)(pageName);
-          console.log(`\u{1F527} \u51C6\u5907\u521B\u5EFA/\u66F4\u65B0\u6587\u4EF6: ${normalizedPath}`);
+          log(`\u{1F527} \u51C6\u5907\u521B\u5EFA/\u66F4\u65B0\u6587\u4EF6: ${normalizedPath}`);
           const omnivoreFile = this.app.vault.getAbstractFileByPath(normalizedPath);
           if (omnivoreFile instanceof import_obsidian7.TFile) {
             if (isSingleFile) {
@@ -19068,41 +19090,39 @@ ${newContentWithoutFrontMatter}`);
             continue;
           }
           try {
-            console.log(`\u{1F527} \u521B\u5EFA\u65B0\u6587\u4EF6: ${normalizedPath}`);
+            log(`\u{1F527} \u521B\u5EFA\u65B0\u6587\u4EF6: ${normalizedPath}`);
             await this.app.vault.create(normalizedPath, content);
-            console.log(`\u{1F527} \u6587\u4EF6\u521B\u5EFA\u6210\u529F: ${normalizedPath}`);
+            log(`\u{1F527} \u6587\u4EF6\u521B\u5EFA\u6210\u529F: ${normalizedPath}`);
           } catch (error) {
-            console.error(`\u{1F527} \u6587\u4EF6\u521B\u5EFA\u5931\u8D25: ${normalizedPath}`, error);
             if (error.toString().includes("File already exists")) {
-              console.log(`\u{1F527} \u6587\u4EF6\u5DF2\u5B58\u5728\uFF0C\u8DF3\u8FC7\u521B\u5EFA: ${normalizedPath}`);
-              new import_obsidian7.Notice(`\u8DF3\u8FC7\u6587\u4EF6\u521B\u5EFA: ${normalizedPath}. \u6587\u4EF6\u5DF2\u5B58\u5728\uFF0C\u8BF7\u68C0\u67E5\u662F\u5426\u6709\u91CD\u590D\u7684\u6587\u7AE0\u6807\u9898\u3002`, 5e3);
+              log(`\u{1F527} \u6587\u4EF6\u5DF2\u5B58\u5728\uFF0C\u8DF3\u8FC7\u521B\u5EFA: ${normalizedPath}`);
             } else {
-              console.error(`\u{1F527} \u6587\u4EF6\u521B\u5EFA\u9047\u5230\u672A\u77E5\u9519\u8BEF: ${normalizedPath}`, error);
-              new import_obsidian7.Notice(`\u6587\u4EF6\u521B\u5EFA\u5931\u8D25: ${normalizedPath}`, 5e3);
+              logError(`\u{1F527} \u6587\u4EF6\u521B\u5EFA\u5931\u8D25: ${normalizedPath}`, error);
+              new import_obsidian7.Notice(`\u6587\u4EF6\u521B\u5EFA\u5931\u8D25: ${normalizedPath}`, 3e3);
             }
           }
-          console.log(`\u{1F527} \u6587\u7AE0\u5904\u7406\u5B8C\u6210: ${item.title}`);
+          log(`\u{1F527} \u6587\u7AE0\u5904\u7406\u5B8C\u6210: ${item.title}`);
         }
-        console.log(`\u{1F527} \u6279\u6B21\u5904\u7406\u5B8C\u6210\uFF0C\u5904\u7406\u4E86 ${items.length} \u7BC7\u6587\u7AE0`);
+        log(`\u{1F527} \u6279\u6B21\u5904\u7406\u5B8C\u6210\uFF0C\u5904\u7406\u4E86 ${items.length} \u7BC7\u6587\u7AE0`);
         if (!hasNextPage) {
           break;
         }
       }
       this.settings.syncAt = DateTime.local().toFormat(DATE_FORMAT);
       await this.saveSettings();
-      console.log("\u7B14\u8BB0\u540C\u6B65\u52A9\u624B\u540C\u6B65\u5B8C\u6210", this.settings.syncAt);
+      log("\u7B14\u8BB0\u540C\u6B65\u52A9\u624B\u540C\u6B65\u5B8C\u6210", this.settings.syncAt);
       manualSync && new import_obsidian7.Notice("\u{1F389} \u540C\u6B65\u5B8C\u6210");
       this.refreshFileExplorer();
     } catch (e) {
       new import_obsidian7.Notice("\u83B7\u53D6\u6570\u636E\u5931\u8D25");
-      console.error(e);
+      logError(e);
     } finally {
       this.settings.syncing = false;
       await this.saveSettings();
       try {
         this.refreshFileExplorer();
       } catch (refreshError) {
-        console.log("\u6587\u4EF6\u6D4F\u89C8\u5668\u5237\u65B0\u9047\u5230\u95EE\u9898\uFF0C\u4F46\u4E0D\u5F71\u54CD\u6B63\u5E38\u4F7F\u7528", refreshError);
+        log("\u6587\u4EF6\u6D4F\u89C8\u5668\u5237\u65B0\u9047\u5230\u95EE\u9898\uFF0C\u4F46\u4E0D\u5F71\u54CD\u6B63\u5E38\u4F7F\u7528", refreshError);
       }
     }
   }
@@ -19121,7 +19141,7 @@ ${newContentWithoutFrontMatter}`);
       }
     } catch (e) {
       new import_obsidian7.Notice("Failed to delete article in Omnivore");
-      console.error(e);
+      logError(e);
     }
     await this.app.vault.delete(file);
   }
@@ -19130,147 +19150,18 @@ ${newContentWithoutFrontMatter}`);
     this.settings.intervalId = 0;
     await this.saveSettings();
   }
-  async forceRebuildFileIndex(folderPath) {
-    try {
-      console.log(`\u{1F504} \u5F00\u59CB\u5F3A\u5236\u91CD\u5EFA\u6587\u4EF6\u7D22\u5F15: ${folderPath}`);
-      const pathParts = folderPath.split("/");
-      for (let i = 1; i <= pathParts.length; i++) {
-        const partialPath = pathParts.slice(0, i).join("/");
-        try {
-          await this.app.vault.adapter.list(partialPath);
-          console.log(`\u{1F504} \u626B\u63CF\u8DEF\u5F84: ${partialPath}`);
-        } catch (e) {
-        }
-      }
-      const vault = this.app.vault;
-      if (vault.fileManager && vault.fileManager.processFrontMatter) {
-        vault.trigger("changed");
-        console.log("\u{1F504} \u89E6\u53D1\u4E86vault\u53D8\u5316\u4E8B\u4EF6");
-      }
-      if (vault.adapter && vault.adapter.exists) {
-        const exists = await vault.adapter.exists(folderPath);
-        if (exists) {
-          console.log(`\u{1F504} \u786E\u8BA4\u6587\u4EF6\u7CFB\u7EDF\u4E2D\u5B58\u5728: ${folderPath}`);
-          if (vault.adapter.list) {
-            const parentPath = folderPath.split("/").slice(0, -1).join("/") || "";
-            await vault.adapter.list(parentPath);
-            console.log(`\u{1F504} \u91CD\u65B0\u626B\u63CF\u7236\u76EE\u5F55: ${parentPath}`);
-          }
-          setTimeout(async () => {
-            try {
-              const contents = await vault.adapter.list(folderPath);
-              console.log(`\u{1F504} \u5F3A\u5236\u8BFB\u53D6\u76EE\u5F55\u5185\u5BB9: ${folderPath}, \u627E\u5230 ${contents.files.length} \u4E2A\u6587\u4EF6, ${contents.folders.length} \u4E2A\u6587\u4EF6\u5939`);
-              for (const file of contents.files) {
-                const filePath = folderPath + "/" + file;
-                try {
-                  await vault.adapter.stat(filePath);
-                } catch (e) {
-                }
-              }
-              for (const subFolder of contents.folders) {
-                const subFolderPath = folderPath + "/" + subFolder;
-                await this.forceRebuildFileIndex(subFolderPath);
-              }
-            } catch (e) {
-              console.log(`\u{1F504} \u76EE\u5F55\u5185\u5BB9\u8BFB\u53D6\u5931\u8D25: ${e}`);
-            }
-          }, 100);
-        } else {
-          console.log(`\u{1F504} \u6587\u4EF6\u7CFB\u7EDF\u4E2D\u4E0D\u5B58\u5728: ${folderPath}`);
-        }
-      }
-      if (vault.fileManager) {
-        vault.fileManager.vault = vault;
-        setTimeout(() => {
-          vault.trigger("create", folderPath);
-          vault.trigger("modify", folderPath);
-          console.log(`\u{1F504} \u89E6\u53D1\u4E86\u6587\u4EF6\u53D8\u5316\u4E8B\u4EF6: ${folderPath}`);
-        }, 200);
-      }
-      setTimeout(async () => {
-        try {
-          if (vault.adapter && vault.adapter.list) {
-            await vault.adapter.list("");
-            console.log("\u{1F504} \u5B8C\u6210\u4E86\u6839\u76EE\u5F55\u7684\u5B8C\u6574\u626B\u63CF");
-          }
-          this.app.workspace.trigger("file-open");
-          this.app.workspace.trigger("layout-change");
-          console.log("\u{1F504} \u89E6\u53D1\u4E86UI\u66F4\u65B0\u4E8B\u4EF6");
-        } catch (e) {
-          console.log("\u{1F504} \u6700\u7EC8\u540C\u6B65\u6B65\u9AA4\u9047\u5230\u95EE\u9898:", e);
-        }
-      }, 500);
-      console.log(`\u{1F504} \u6587\u4EF6\u7D22\u5F15\u91CD\u5EFA\u5B8C\u6210: ${folderPath}`);
-    } catch (error) {
-      console.log(`\u{1F504} \u6587\u4EF6\u7D22\u5F15\u91CD\u5EFA\u5931\u8D25: ${folderPath}`, error);
-      throw error;
-    }
-  }
   refreshFileExplorer() {
     if (this.refreshTimeout) {
       clearTimeout(this.refreshTimeout);
     }
     this.refreshTimeout = setTimeout(() => {
       try {
-        console.log("\u{1F504} \u5F00\u59CB\u5237\u65B0\u6587\u4EF6\u6D4F\u89C8\u5668");
-        this.app.workspace.trigger("omnivore:sync-completed");
-        const fileExplorer = this.app.workspace.getLeavesOfType("file-explorer")[0];
-        if (fileExplorer && fileExplorer.view) {
-          console.log("\u{1F504} \u627E\u5230\u6587\u4EF6\u6D4F\u89C8\u5668\uFF0C\u5F00\u59CB\u5237\u65B0");
-          const view = fileExplorer.view;
-          if (view.requestSort) {
-            view.requestSort();
-            console.log("\u{1F504} \u6267\u884C\u4E86 requestSort");
-          }
-          if (view.tree && view.tree.requestSort) {
-            view.tree.requestSort();
-            console.log("\u{1F504} \u6267\u884C\u4E86 tree.requestSort");
-          }
-          if (view.tree && view.tree.requestRebuild) {
-            view.tree.requestRebuild();
-            console.log("\u{1F504} \u6267\u884C\u4E86 tree.requestRebuild");
-          }
-          if (view.tree && view.tree.rebuild) {
-            view.tree.rebuild();
-            console.log("\u{1F504} \u6267\u884C\u4E86 tree.rebuild");
-          }
-          if (view.tree && view.tree.root) {
-            view.tree.root.collapsed = false;
-            console.log("\u{1F504} \u5C55\u5F00\u4E86\u6839\u8282\u70B9");
-          }
-        } else {
-          console.log("\u{1F504} \u672A\u627E\u5230\u6587\u4EF6\u6D4F\u89C8\u5668");
-        }
-        setTimeout(async () => {
-          try {
-            console.log("\u{1F504} \u5F00\u59CB\u5EF6\u8FDF\u5237\u65B0");
-            await this.app.vault.adapter.list("");
-            await this.app.vault.adapter.list("\u7B14\u8BB0\u540C\u6B65\u52A9\u624B");
-            console.log("\u{1F504} \u5B8C\u6210\u6587\u4EF6\u7CFB\u7EDF\u626B\u63CF");
-            this.app.workspace.trigger("layout-change");
-            this.app.vault.trigger("changed");
-            console.log("\u{1F504} \u89E6\u53D1\u4E86\u5B89\u5168\u7684\u5237\u65B0\u4E8B\u4EF6");
-            const fileExplorer2 = this.app.workspace.getLeavesOfType("file-explorer")[0];
-            if (fileExplorer2 && fileExplorer2.view) {
-              const view2 = fileExplorer2.view;
-              if (view2.tree) {
-                if (view2.tree.infinityScroll) {
-                  view2.tree.infinityScroll.compute();
-                  console.log("\u{1F504} \u5237\u65B0\u4E86\u65E0\u9650\u6EDA\u52A8");
-                }
-                if (view2.tree.onResize) {
-                  view2.tree.onResize();
-                  console.log("\u{1F504} \u91CD\u65B0\u8BA1\u7B97\u4E86\u6811\u7684\u5927\u5C0F");
-                }
-              }
-            }
-            console.log("\u{1F504} \u5EF6\u8FDF\u5237\u65B0\u5B8C\u6210");
-          } catch (error) {
-            console.log("\u{1F504} \u5EF6\u8FDF\u5237\u65B0\u9047\u5230\u95EE\u9898:", error);
-          }
-        }, 300);
+        log("\u{1F504} \u5F00\u59CB\u5237\u65B0\u6587\u4EF6\u6D4F\u89C8\u5668");
+        this.app.vault.trigger("changed");
+        this.app.workspace.trigger("layout-change");
+        log("\u{1F504} \u6587\u4EF6\u6D4F\u89C8\u5668\u5237\u65B0\u5B8C\u6210");
       } catch (error) {
-        console.log("\u{1F504} \u6587\u4EF6\u6D4F\u89C8\u5668\u5237\u65B0\u9047\u5230\u95EE\u9898\uFF0C\u4F46\u4E0D\u5F71\u54CD\u6B63\u5E38\u4F7F\u7528:", error);
+        log("\u{1F504} \u6587\u4EF6\u6D4F\u89C8\u5668\u5237\u65B0\u9047\u5230\u95EE\u9898:", error);
       } finally {
         this.refreshTimeout = null;
       }
