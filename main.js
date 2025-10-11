@@ -17002,7 +17002,7 @@ var DEFAULT_SETTINGS = {
   intervalId: 0,
   frontMatterVariables: [],
   frontMatterTemplate: "",
-  syncOnStart: true,
+  syncOnStart: false,
   enableHighlightColorRender: false,
   highlightManagerId: "omni" /* OMNIVORE */,
   highlightColorMapping: {
@@ -18598,11 +18598,14 @@ var FolderSuggest = class extends TextInputSuggest {
 var OmnivoreSettingTab = class extends import_obsidian6.PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
+    this.latestVersionInfo = null;
+    this.versionCheckPromise = null;
     this.plugin = plugin;
   }
   display() {
     const { containerEl } = this;
     containerEl.empty();
+    this.displayVersionInfo(containerEl);
     new import_obsidian6.Setting(containerEl).setName("\u5BC6\u94A5").setDesc("\u8BF7\u5173\u6CE8\u300A\u7B14\u8BB0\u540C\u6B65\u52A9\u624B\u300B\u516C\u4F17\u53F7\u83B7\u53D6\u5BC6\u94A5").addText((text) => text.setPlaceholder("\u8F93\u5165\u60A8\u7684\u5BC6\u94A5").setValue(this.plugin.settings.apiKey).onChange(async (value) => {
       this.plugin.settings.apiKey = value;
       await this.plugin.saveSettings();
@@ -18832,6 +18835,155 @@ var OmnivoreSettingTab = class extends import_obsidian6.PluginSettingTab {
   }
   displayBlock(block, display) {
     block.style.display = display ? "block" : "none";
+  }
+  displayVersionInfo(containerEl) {
+    const versionContainer = containerEl.createEl("div", {
+      cls: "omnivore-version-container"
+    });
+    versionContainer.style.cssText = "margin-bottom: 20px; padding: 15px; border: 1px solid var(--background-modifier-border); border-radius: 8px; background: var(--background-secondary);";
+    const currentVersion = this.plugin.manifest.version;
+    const versionInfo = versionContainer.createEl("div", {
+      cls: "omnivore-version-info"
+    });
+    const versionText = versionInfo.createEl("span", {
+      text: `\u7B14\u8BB0\u540C\u6B65\u52A9\u624B\u7248\u672C: ${currentVersion}`,
+      cls: "omnivore-current-version"
+    });
+    versionText.style.cssText = "font-weight: bold; margin-right: 15px;";
+    const checkButton = versionInfo.createEl("button", {
+      text: "\u68C0\u67E5\u66F4\u65B0",
+      cls: "mod-cta omnivore-check-update-btn"
+    });
+    checkButton.style.cssText = "margin-left: 10px;";
+    checkButton.onclick = () => {
+      this.checkForUpdates(versionContainer);
+    };
+    if (this.versionCheckPromise) {
+      this.showVersionCheckStatus(versionContainer, "\u6B63\u5728\u68C0\u67E5\u66F4\u65B0...");
+    }
+    this.checkForUpdates(versionContainer);
+  }
+  async checkForUpdates(versionContainer) {
+    log("\u{1F504} \u5F00\u59CB\u68C0\u67E5\u7248\u672C\u66F4\u65B0...");
+    if (this.versionCheckPromise) {
+      log("\u{1F504} \u68C0\u67E5\u66F4\u65B0\u5DF2\u5728\u8FDB\u884C\u4E2D\uFF0C\u8DF3\u8FC7...");
+      return;
+    }
+    this.showVersionCheckStatus(versionContainer, "\u6B63\u5728\u68C0\u67E5\u66F4\u65B0...");
+    this.versionCheckPromise = this.fetchLatestVersion();
+    try {
+      await this.versionCheckPromise;
+      log("\u{1F504} \u7248\u672C\u68C0\u67E5\u5B8C\u6210\uFF0C\u663E\u793A\u7ED3\u679C...");
+      this.showVersionStatus(versionContainer);
+    } catch (error) {
+      logError("\u{1F504} \u7248\u672C\u68C0\u67E5\u5931\u8D25:", error);
+      this.showVersionCheckStatus(versionContainer, "\u68C0\u67E5\u66F4\u65B0\u5931\u8D25\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5");
+    } finally {
+      this.versionCheckPromise = null;
+    }
+  }
+  async fetchLatestVersion() {
+    log("\u{1F504} \u5F00\u59CB\u8BF7\u6C42\u6700\u65B0\u7248\u672C\u4FE1\u606F...");
+    try {
+      const response = await (0, import_obsidian6.requestUrl)({
+        url: "https://obsidian.notebooksyncer.com/plugversion",
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json"
+        }
+      });
+      log("\u{1F504} API\u54CD\u5E94\u72B6\u6001:", response.status);
+      log("\u{1F504} API\u54CD\u5E94\u6570\u636E:", response.json);
+      if (response.status === 200) {
+        const data2 = response.json;
+        this.latestVersionInfo = {
+          version: data2.version,
+          downloadUrl: data2.downloadUrl
+        };
+        log("\u{1F504} \u6700\u65B0\u7248\u672C\u4FE1\u606F\u5DF2\u4FDD\u5B58:", this.latestVersionInfo);
+      } else {
+        throw new Error(`HTTP ${response.status}`);
+      }
+    } catch (error) {
+      logError("\u{1F504} \u83B7\u53D6\u6700\u65B0\u7248\u672C\u4FE1\u606F\u5931\u8D25:", error);
+      throw error;
+    }
+  }
+  showVersionCheckStatus(versionContainer, message) {
+    const existingStatus = versionContainer.querySelector(".omnivore-version-status");
+    if (existingStatus) {
+      existingStatus.remove();
+    }
+    const statusEl = versionContainer.createEl("div", {
+      text: message,
+      cls: "omnivore-version-status"
+    });
+    statusEl.style.cssText = "margin-top: 10px; color: var(--text-muted); font-size: 0.9em;";
+  }
+  showVersionStatus(versionContainer) {
+    log("\u{1F504} \u5F00\u59CB\u663E\u793A\u7248\u672C\u72B6\u6001...");
+    const existingStatus = versionContainer.querySelector(".omnivore-version-status");
+    if (existingStatus) {
+      existingStatus.remove();
+    }
+    if (!this.latestVersionInfo) {
+      log("\u{1F504} \u6CA1\u6709\u6700\u65B0\u7248\u672C\u4FE1\u606F");
+      this.showVersionCheckStatus(versionContainer, "\u65E0\u6CD5\u83B7\u53D6\u6700\u65B0\u7248\u672C\u4FE1\u606F");
+      return;
+    }
+    const currentVersion = this.plugin.manifest.version;
+    const latestVersion = this.latestVersionInfo.version;
+    log("\u{1F504} \u5F53\u524D\u7248\u672C:", currentVersion);
+    log("\u{1F504} \u6700\u65B0\u7248\u672C:", latestVersion);
+    const isNewer = this.isNewerVersion(latestVersion, currentVersion);
+    log("\u{1F504} \u7248\u672C\u6BD4\u8F83\u7ED3\u679C - \u6709\u65B0\u7248\u672C:", isNewer);
+    if (isNewer) {
+      log("\u{1F504} \u663E\u793A\u66F4\u65B0\u63D0\u793A");
+      const updateContainer = versionContainer.createEl("div", {
+        cls: "omnivore-update-available"
+      });
+      updateContainer.style.cssText = "margin-top: 10px; padding: 10px; background: var(--background-modifier-success); border-radius: 4px;";
+      const updateText = updateContainer.createEl("div", {
+        text: `\u53D1\u73B0\u65B0\u7248\u672C ${latestVersion}\uFF01`,
+        cls: "omnivore-update-text"
+      });
+      updateText.style.cssText = "color: var(--text-success); font-weight: bold; margin-bottom: 8px;";
+      const downloadButton = updateContainer.createEl("button", {
+        text: "\u4E0B\u8F7D\u6700\u65B0\u7248\u672C",
+        cls: "mod-cta omnivore-download-btn"
+      });
+      downloadButton.onclick = () => {
+        log("\u{1F504} \u7528\u6237\u70B9\u51FB\u4E0B\u8F7D\u6309\u94AE");
+        window.open(this.latestVersionInfo.downloadUrl, "_blank");
+      };
+    } else {
+      log("\u{1F504} \u663E\u793A\u5DF2\u662F\u6700\u65B0\u7248\u672C\u63D0\u793A");
+      this.showVersionCheckStatus(versionContainer, "\u2705 \u5DF2\u662F\u6700\u65B0\u7248\u672C");
+    }
+  }
+  isNewerVersion(latestVersion, currentVersion) {
+    log("\u{1F504} \u5F00\u59CB\u7248\u672C\u6BD4\u8F83:", `\u6700\u65B0\u7248\u672C: ${latestVersion}, \u5F53\u524D\u7248\u672C: ${currentVersion}`);
+    const parseVersion = (version) => {
+      const parsed = version.split(".").map((num) => parseInt(num, 10));
+      log("\u{1F504} \u89E3\u6790\u7248\u672C:", version, "\u2192", parsed);
+      return parsed;
+    };
+    const latest = parseVersion(latestVersion);
+    const current = parseVersion(currentVersion);
+    for (let i = 0; i < Math.max(latest.length, current.length); i++) {
+      const latestNum = latest[i] || 0;
+      const currentNum = current[i] || 0;
+      log(`\u{1F504} \u6BD4\u8F83\u4F4D\u7F6E ${i}: \u6700\u65B0 ${latestNum} vs \u5F53\u524D ${currentNum}`);
+      if (latestNum > currentNum) {
+        log("\u{1F504} \u7248\u672C\u6BD4\u8F83\u7ED3\u679C: \u6709\u65B0\u7248\u672C");
+        return true;
+      } else if (latestNum < currentNum) {
+        log("\u{1F504} \u7248\u672C\u6BD4\u8F83\u7ED3\u679C: \u5F53\u524D\u7248\u672C\u66F4\u65B0");
+        return false;
+      }
+    }
+    log("\u{1F504} \u7248\u672C\u6BD4\u8F83\u7ED3\u679C: \u7248\u672C\u76F8\u540C");
+    return false;
   }
 };
 
