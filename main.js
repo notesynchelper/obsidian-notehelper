@@ -15021,7 +15021,7 @@ function friendlyDateTime(dateTimeish) {
 }
 
 // src/main.ts
-var import_obsidian7 = require("obsidian");
+var import_obsidian8 = require("obsidian");
 
 // src/api.ts
 var import_api = __toESM(require_src());
@@ -16969,17 +16969,9 @@ var FRONT_MATTER_VARIABLES = [
   "image"
 ];
 var Filter = /* @__PURE__ */ ((Filter2) => {
-  Filter2["ALL"] = "Sync all the items";
-  Filter2["LIBRARY"] = "Sync only the library items";
-  Filter2["ARCHIVED"] = "Sync only the archived items";
-  Filter2["HIGHLIGHTS"] = "Sync only the highlighted items";
+  Filter2["ALL"] = "\u540C\u6B65\u6240\u6709\u6587\u7AE0";
   return Filter2;
 })(Filter || {});
-var HighlightOrder = /* @__PURE__ */ ((HighlightOrder2) => {
-  HighlightOrder2["LOCATION"] = "the location of highlights in the article";
-  HighlightOrder2["TIME"] = "the time that highlights are updated";
-  return HighlightOrder2;
-})(HighlightOrder || {});
 var DEFAULT_SETTINGS = {
   dateHighlightedFormat: "yyyy-MM-dd HH:mm:ss",
   dateSavedFormat: "yyyy-MM-dd HH:mm:ss",
@@ -18602,16 +18594,19 @@ var OmnivoreSettingTab = class extends import_obsidian6.PluginSettingTab {
     this.versionCheckPromise = null;
     this.plugin = plugin;
   }
-  display() {
+  async display() {
     const { containerEl } = this;
     containerEl.empty();
     this.displayVersionInfo(containerEl);
+    setTimeout(async () => {
+      await this.checkAndPerformMigration();
+    }, 500);
     new import_obsidian6.Setting(containerEl).setName("\u5BC6\u94A5").setDesc("\u8BF7\u5173\u6CE8\u300A\u7B14\u8BB0\u540C\u6B65\u52A9\u624B\u300B\u516C\u4F17\u53F7\u83B7\u53D6\u5BC6\u94A5").addText((text) => text.setPlaceholder("\u8F93\u5165\u60A8\u7684\u5BC6\u94A5").setValue(this.plugin.settings.apiKey).onChange(async (value) => {
       this.plugin.settings.apiKey = value;
       await this.plugin.saveSettings();
     }));
     containerEl.createEl("h3", { text: "\u67E5\u8BE2" });
-    new import_obsidian6.Setting(containerEl).setName("\u7B5B\u9009\u5668").setDesc("\u9009\u62E9\u641C\u7D22\u7B5B\u9009\u5668\u7C7B\u578B\u3002\u66F4\u6539\u6B64\u9879\u5C06\u540C\u6B65\u66F4\u65B0\u201C\u81EA\u5B9A\u4E49\u67E5\u8BE2\u201D\u5E76\u91CD\u7F6E\u201C\u6700\u540E\u540C\u6B65\u201D\u65F6\u95F4\u6233").addDropdown((dropdown) => {
+    new import_obsidian6.Setting(containerEl).setName("\u7B5B\u9009\u5668").setDesc('\u76EE\u524D\u53EA\u652F\u6301\u540C\u6B65\u6240\u6709\u6587\u7AE0\u3002\u53EF\u4EE5\u901A\u8FC7\u8BBE\u7F6E"\u6700\u540E\u540C\u6B65"\u65F6\u95F4\u6765\u63A7\u5236\u540C\u6B65\u8303\u56F4\uFF0C\u53EA\u4F1A\u540C\u6B65\u5728\u8BE5\u65F6\u95F4\u70B9\u4E4B\u540E\u4FDD\u5B58\u6216\u66F4\u65B0\u7684\u6587\u7AE0\u3002').addDropdown((dropdown) => {
       dropdown.addOptions(Filter);
       dropdown.setValue(this.plugin.settings.filter).onChange(async (value) => {
         this.plugin.settings.filter = value;
@@ -18641,7 +18636,7 @@ var OmnivoreSettingTab = class extends import_obsidian6.PluginSettingTab {
       await this.plugin.saveSettings();
       this.plugin.scheduleSync();
     }));
-    new import_obsidian6.Setting(containerEl).setName("\u6700\u540E\u540C\u6B65").setDesc("\u4E0A\u6B21\u540C\u6B65\u7684\u65F6\u95F4\u3002\u540C\u6B65\u547D\u4EE4\u5C06\u83B7\u53D6\u6B64\u65F6\u95F4\u6233\u4E4B\u540E\u66F4\u65B0\u7684\u6587\u7AE0").addMomentFormat((momentFormat) => momentFormat.setPlaceholder("\u6700\u540E\u540C\u6B65").setValue(this.plugin.settings.syncAt).setDefaultFormat("yyyy-MM-dd'T'HH:mm:ss").onChange(async (value) => {
+    new import_obsidian6.Setting(containerEl).setName("\u6700\u540E\u540C\u6B65").setDesc("\u4E0A\u6B21\u540C\u6B65\u7684\u65F6\u95F4\u3002\u540C\u6B65\u547D\u4EE4\u5C06\u83B7\u53D6\u6B64\u65F6\u95F4\u6233\u4E4B\u540E\u66F4\u65B0\u7684\u6587\u7AE0\u3002\u60A8\u53EF\u4EE5\u624B\u52A8\u4FEE\u6539\u6B64\u65F6\u95F4\u6765\u63A7\u5236\u540C\u6B65\u8303\u56F4\u3002").addMomentFormat((momentFormat) => momentFormat.setPlaceholder("\u6700\u540E\u540C\u6B65").setValue(this.plugin.settings.syncAt).setDefaultFormat("yyyy-MM-dd'T'HH:mm:ss").onChange(async (value) => {
       this.plugin.settings.syncAt = value;
       await this.plugin.saveSettings();
     }));
@@ -18649,7 +18644,7 @@ var OmnivoreSettingTab = class extends import_obsidian6.PluginSettingTab {
       this.plugin.settings.isSingleFile = value;
       await this.plugin.saveSettings();
     }));
-    new import_obsidian6.Setting(containerEl).setName("\u6587\u4EF6\u5939 / Folder").setDesc("\u8F93\u5165\u6570\u636E\u5B58\u50A8\u7684\u6587\u4EF6\u5939\u8DEF\u5F84\u3002\u53EF\u5728\u6587\u4EF6\u5939\u540D\u79F0\u4E2D\u4F7F\u7528 {{{title}}}\u3001{{{dateSaved}}} \u548C {{{datePublished}}} / Enter the folder where the data will be stored. {{{title}}}, {{{dateSaved}}} and {{{datePublished}}} could be used in the folder name").addSearch((search) => {
+    new import_obsidian6.Setting(containerEl).setName("\u6587\u4EF6\u5939 / Folder").setDesc("\u8F93\u5165\u6570\u636E\u5B58\u50A8\u7684\u6587\u4EF6\u5939\u8DEF\u5F84\u3002\u53EF\u5728\u6587\u4EF6\u5939\u540D\u79F0\u4E2D\u4F7F\u7528 {{{title}}}\u3001{{{dateSaved}}} / Enter the folder where the data will be stored. {{{title}}}, {{{dateSaved}}} could be used in the folder name").addSearch((search) => {
       new FolderSuggest(this.app, search.inputEl);
       search.setPlaceholder("Enter the folder").setValue(this.plugin.settings.folder).onChange(async (value) => {
         this.plugin.settings.folder = value;
@@ -18665,14 +18660,14 @@ var OmnivoreSettingTab = class extends import_obsidian6.PluginSettingTab {
       this.plugin.settings.folderDateFormat = value;
       await this.plugin.saveSettings();
     }));
-    new import_obsidian6.Setting(containerEl).setName("\u9644\u4EF6\u6587\u4EF6\u5939 / Attachment Folder").setDesc("\u8F93\u5165\u9644\u4EF6\u4E0B\u8F7D\u7684\u6587\u4EF6\u5939\u8DEF\u5F84\u3002\u53EF\u5728\u6587\u4EF6\u5939\u540D\u79F0\u4E2D\u4F7F\u7528 {{{title}}}\u3001{{{dateSaved}}} \u548C {{{datePublished}}} / Enter the folder where the attachment will be downloaded to. {{{title}}}, {{{dateSaved}}} and {{{datePublished}}} could be used in the folder name").addSearch((search) => {
+    new import_obsidian6.Setting(containerEl).setName("\u9644\u4EF6\u6587\u4EF6\u5939 / Attachment Folder").setDesc("\u8F93\u5165\u9644\u4EF6\u4E0B\u8F7D\u7684\u6587\u4EF6\u5939\u8DEF\u5F84\u3002\u53EF\u5728\u6587\u4EF6\u5939\u540D\u79F0\u4E2D\u4F7F\u7528 {{{title}}}\u3001{{{dateSaved}}} / Enter the folder where the attachment will be downloaded to. {{{title}}}, {{{dateSaved}}} could be used in the folder name").addSearch((search) => {
       new FolderSuggest(this.app, search.inputEl);
       search.setPlaceholder("Enter the attachment folder").setValue(this.plugin.settings.attachmentFolder).onChange(async (value) => {
         this.plugin.settings.attachmentFolder = value;
         await this.plugin.saveSettings();
       });
     });
-    new import_obsidian6.Setting(containerEl).setName("\u6587\u4EF6\u540D / Filename").setDesc("\u8F93\u5165\u6570\u636E\u5B58\u50A8\u7684\u6587\u4EF6\u540D\u3002\u53EF\u5728\u6587\u4EF6\u540D\u4E2D\u4F7F\u7528 {{id}}\u3001{{{title}}}\u3001{{{dateSaved}}} \u548C {{{datePublished}}} / Enter the filename where the data will be stored. {{id}}, {{{title}}}, {{{dateSaved}}} and {{{datePublished}}} could be used in the filename").addText((text) => text.setPlaceholder("Enter the filename").setValue(this.plugin.settings.filename).onChange(async (value) => {
+    new import_obsidian6.Setting(containerEl).setName("\u6587\u4EF6\u540D / Filename").setDesc("\u8F93\u5165\u6570\u636E\u5B58\u50A8\u7684\u6587\u4EF6\u540D\u3002\u53EF\u5728\u6587\u4EF6\u540D\u4E2D\u4F7F\u7528 {{id}}\u3001{{{title}}}\u3001{{{dateSaved}}} / Enter the filename where the data will be stored. {{id}}, {{{title}}}, {{{dateSaved}}} could be used in the filename").addText((text) => text.setPlaceholder("Enter the filename").setValue(this.plugin.settings.filename).onChange(async (value) => {
       this.plugin.settings.filename = value;
       await this.plugin.saveSettings();
     }));
@@ -18720,76 +18715,6 @@ var OmnivoreSettingTab = class extends import_obsidian6.PluginSettingTab {
       this.plugin.settings.dateSavedFormat = value;
       await this.plugin.saveSettings();
     }));
-    new import_obsidian6.Setting(containerEl).setName("\u9AD8\u4EAE\u65E5\u671F\u683C\u5F0F / Date Highlighted Format").setDesc("\u8F93\u5165\u6E32\u67D3\u6A21\u677F\u4E2D dateHighlighted \u53D8\u91CF\u7684\u65E5\u671F\u683C\u5F0F / Enter the date format for dateHighlighted variable in rendered template").addText((text) => text.setPlaceholder("Date Highlighted Format").setValue(this.plugin.settings.dateHighlightedFormat).onChange(async (value) => {
-      this.plugin.settings.dateHighlightedFormat = value;
-      await this.plugin.saveSettings();
-    }));
-    containerEl.createEl("h4", { text: "\u9AD8\u4EAE / Highlights" });
-    new import_obsidian6.Setting(containerEl).setName("\u9AD8\u4EAE\u6392\u5E8F / Highlight Order").setDesc("\u9009\u62E9\u9AD8\u4EAE\u7684\u6392\u5E8F\u65B9\u5F0F / Select the order in which highlights are applied").addDropdown((dropdown) => {
-      dropdown.addOptions(HighlightOrder);
-      dropdown.setValue(this.plugin.settings.highlightOrder).onChange(async (value) => {
-        this.plugin.settings.highlightOrder = value;
-        await this.plugin.saveSettings();
-      });
-    });
-    new import_obsidian6.Setting(containerEl).setName("\u6E32\u67D3\u9AD8\u4EAE\u989C\u8272 / Render Highlight Color").setDesc("\u52FE\u9009\u6B64\u9009\u9879\u5C06\u4F7F\u7528 Omnivore \u5E94\u7528\u4E2D\u7684\u9AD8\u4EAE\u989C\u8272\u6E32\u67D3 / Check this box if you want to render highlights with color used in the Omnivore App").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableHighlightColorRender).onChange(async (value) => {
-      this.plugin.settings.enableHighlightColorRender = value;
-      await this.plugin.saveSettings();
-      this.displayBlock(renderHighlightConfigContainer, value);
-    }));
-    const renderHighlightConfigContainer = containerEl.createEl("div");
-    this.displayBlock(renderHighlightConfigContainer, this.plugin.settings.enableHighlightColorRender);
-    new import_obsidian6.Setting(renderHighlightConfigContainer).setName("\u4F7F\u7528 Highlightr \u8FDB\u884C\u9AD8\u4EAE\u6837\u5F0F\u8BBE\u7F6E / Use Highlightr for Highlight styling").setDesc(createFragment((fragment) => {
-      fragment.append(fragment.createEl("a", {
-        text: "Highlightr",
-        href: "https://github.com/chetachiezikeuzor/Highlightr-Plugin"
-      }), " \u662F\u4E00\u4E2A\u7528\u4E8E\u7BA1\u7406\u9AD8\u4EAE\u6837\u5F0F\u548C\u5FEB\u6377\u952E\u7684\u793E\u533A\u63D2\u4EF6 / is a community plugin for managing highlight style and hotkeys", fragment.createEl("br"), "\u5982\u679C\u60A8\u5E0C\u671B\u5C06\u9AD8\u4EAE\u989C\u8272\u548C\u6837\u5F0F\u914D\u7F6E\u59D4\u6258\u7ED9\u5B83\uFF0C\u8BF7\u52FE\u9009\u6B64\u9009\u9879 / Check this if you'd like to delegate configuration of highlight color and styling to it", fragment.createEl("br"), '\u8BF7\u786E\u4FDD\u5728 highlightr \u63D2\u4EF6\u4E2D\u9009\u62E9 "css-class" \u4F5C\u4E3A\u9AD8\u4EAE\u65B9\u6CD5 / Ensure to select "css-class" as the highlight-method in the highlightr plugin');
-    })).addToggle((toggle) => toggle.setValue(this.plugin.settings.highlightManagerId == "hltr" /* HIGHLIGHTR */).onChange(async (value) => {
-      this.plugin.settings.highlightManagerId = value ? "hltr" /* HIGHLIGHTR */ : "omni" /* OMNIVORE */;
-      await this.plugin.saveSettings();
-      this.displayBlock(omnivoreHighlightConfigContainer, !value);
-    }));
-    const omnivoreHighlightConfigContainer = renderHighlightConfigContainer.createEl("div", {
-      cls: "omnivore-highlight-config-container"
-    });
-    this.displayBlock(omnivoreHighlightConfigContainer, this.plugin.settings.highlightManagerId == "omni" /* OMNIVORE */);
-    const highlighterSetting = new import_obsidian6.Setting(omnivoreHighlightConfigContainer);
-    const colorPickers = {};
-    highlighterSetting.setName("\u914D\u7F6E\u9AD8\u4EAE\u989C\u8272 / Configure highlight colors").setDesc("\u914D\u7F6E Omnivore \u4E2D\u7684\u9AD8\u4EAE\u989C\u8272\u5728\u7B14\u8BB0\u4E2D\u7684\u6E32\u67D3\u65B9\u5F0F / Configure how the highlight colors in Omnivore should render in notes").addButton((button) => {
-      button.setButtonText("Save");
-      button.setTooltip("Save highlight color setting");
-      button.setClass("omnivore-btn");
-      button.setClass("omnivore-btn-primary");
-      button.onClick(async (e) => {
-        const highlightColorMapping = this.plugin.settings.highlightColorMapping;
-        Object.entries(colorPickers).forEach(([color, picker]) => {
-          highlightColorMapping[color] = picker.getValue();
-        });
-        setOrUpdateHighlightColors(highlightColorMapping);
-        await this.plugin.saveSettings();
-        new import_obsidian6.Notice("Saved highlight color settings");
-      });
-    });
-    const getPenIcon = (hexCode) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill=${hexCode} stroke=${hexCode} stroke-width="0" stroke-linecap="round" stroke-linejoin="round"><path d="M20.707 5.826l-3.535-3.533a.999.999 0 0 0-1.408-.006L7.096 10.82a1.01 1.01 0 0 0-.273.488l-1.024 4.437L4 18h2.828l1.142-1.129l3.588-.828c.18-.042.345-.133.477-.262l8.667-8.535a1 1 0 0 0 .005-1.42zm-9.369 7.833l-2.121-2.12l7.243-7.131l2.12 2.12l-7.242 7.131zM4 20h16v2H4z"/></svg>`;
-    const colorMap = this.plugin.settings.highlightColorMapping;
-    Object.entries(colorMap).forEach(([colorName, hexCode]) => {
-      let penIcon = getPenIcon(hexCode);
-      const settingItem = omnivoreHighlightConfigContainer.createEl("div");
-      settingItem.addClass("omnivore-highlight-setting-item");
-      const colorIcon = settingItem.createEl("span");
-      colorIcon.addClass("omnivore-highlight-setting-icon");
-      colorIcon.innerHTML = penIcon;
-      const colorSetting = new import_obsidian6.Setting(settingItem).setName(colorName).setDesc(hexCode);
-      colorSetting.addColorPicker((colorPicker) => {
-        colorPicker.setValue(hexCode);
-        colorPickers[colorName] = colorPicker;
-        colorPicker.onChange((v) => {
-          penIcon = getPenIcon(v);
-          colorIcon.innerHTML = penIcon;
-          colorSetting.setDesc(v);
-        });
-      });
-    });
     containerEl.createEl("h3", {
       cls: "omnivore-collapsible",
       text: "\u9AD8\u7EA7\u8BBE\u7F6E / Advanced Settings"
@@ -18861,7 +18786,6 @@ var OmnivoreSettingTab = class extends import_obsidian6.PluginSettingTab {
     if (this.versionCheckPromise) {
       this.showVersionCheckStatus(versionContainer, "\u6B63\u5728\u68C0\u67E5\u66F4\u65B0...");
     }
-    this.checkForUpdates(versionContainer);
   }
   async checkForUpdates(versionContainer) {
     log("\u{1F504} \u5F00\u59CB\u68C0\u67E5\u7248\u672C\u66F4\u65B0...");
@@ -18985,32 +18909,293 @@ var OmnivoreSettingTab = class extends import_obsidian6.PluginSettingTab {
     log("\u{1F504} \u7248\u672C\u6BD4\u8F83\u7ED3\u679C: \u7248\u672C\u76F8\u540C");
     return false;
   }
+  async checkAndPerformMigration() {
+    try {
+      const manifestVersion = this.plugin.manifest.version;
+      const configMigrationManager = this.plugin.configMigrationManager;
+      log("\u8BBE\u7F6E\u9875\u9762\uFF1A\u5F53\u524D\u914D\u7F6E", {
+        apiKey: this.plugin.settings.apiKey ? "***" : "(\u7A7A)",
+        version: this.plugin.settings.version,
+        manifestVersion
+      });
+      if (configMigrationManager.isConfigMigrationNeeded(this.plugin.settings, manifestVersion)) {
+        log("\u8BBE\u7F6E\u9875\u9762\uFF1A\u68C0\u6D4B\u5230\u9700\u8981\u914D\u7F6E\u8FC1\u79FB");
+        const beforeMigration = {
+          apiKey: this.plugin.settings.apiKey,
+          syncAt: this.plugin.settings.syncAt
+        };
+        const migratedSettings = await configMigrationManager.performMigration(this.plugin.settings, manifestVersion);
+        log("\u8BBE\u7F6E\u9875\u9762\uFF1A\u8FC1\u79FB\u540E\u7684\u914D\u7F6E", {
+          apiKey: migratedSettings.apiKey ? "***" : "(\u7A7A)",
+          version: migratedSettings.version,
+          syncAt: migratedSettings.syncAt
+        });
+        const hasApiKeyRestored = migratedSettings.apiKey && migratedSettings.apiKey !== beforeMigration.apiKey && migratedSettings.apiKey.trim() !== "";
+        const hasSyncTimeRestored = migratedSettings.syncAt && migratedSettings.syncAt !== beforeMigration.syncAt && migratedSettings.syncAt.trim() !== "";
+        this.plugin.settings = migratedSettings;
+        await this.plugin.saveSettings();
+        log("\u8BBE\u7F6E\u9875\u9762\uFF1A\u914D\u7F6E\u4FDD\u5B58\u5B8C\u6210");
+        if (hasApiKeyRestored || hasSyncTimeRestored) {
+          new import_obsidian6.Notice("\u914D\u7F6E\u5DF2\u4ECE\u5907\u4EFD\u6062\u590D", 5e3);
+          log("\u8BBE\u7F6E\u9875\u9762\uFF1A\u6210\u529F\u6062\u590D\u914D\u7F6E", {
+            hasApiKeyRestored,
+            hasSyncTimeRestored
+          });
+        } else {
+          log("\u8BBE\u7F6E\u9875\u9762\uFF1A\u672A\u68C0\u6D4B\u5230\u6709\u6548\u7684\u5907\u4EFD\u914D\u7F6E\u6062\u590D");
+        }
+      } else {
+        log("\u8BBE\u7F6E\u9875\u9762\uFF1A\u65E0\u9700\u914D\u7F6E\u8FC1\u79FB");
+      }
+    } catch (error) {
+      logError("\u8BBE\u7F6E\u9875\u9762\uFF1A\u914D\u7F6E\u8FC1\u79FB\u5931\u8D25", error);
+    }
+  }
+};
+
+// src/configMigration.ts
+var import_obsidian7 = require("obsidian");
+var ConfigMigrationManager = class {
+  constructor(app, plugin) {
+    this.BACKUP_KEY = "config-backup";
+    this.MAX_BACKUPS = 5;
+    this.app = app;
+    this.plugin = plugin;
+  }
+  async backupSettings(settings) {
+    try {
+      const backupData = {
+        timestamp: new Date().toISOString(),
+        version: settings.version,
+        settings
+      };
+      const existingBackups = await this.loadAllBackups();
+      existingBackups.unshift(backupData);
+      const limitedBackups = existingBackups.slice(0, this.MAX_BACKUPS);
+      await this.plugin.saveData({
+        [this.BACKUP_KEY]: limitedBackups
+      });
+      log("\u914D\u7F6E\u5907\u4EFD\u6210\u529F", {
+        backupCount: limitedBackups.length,
+        latestBackup: backupData.timestamp
+      });
+    } catch (error) {
+      log("\u914D\u7F6E\u5907\u4EFD\u5931\u8D25\uFF0C\u4F46\u4E0D\u5F71\u54CD\u63D2\u4EF6\u6B63\u5E38\u8FD0\u884C", error.message);
+    }
+  }
+  async restoreFromBackup() {
+    try {
+      const backups = await this.loadAllBackups();
+      if (backups.length === 0) {
+        log("\u672A\u627E\u5230\u914D\u7F6E\u5907\u4EFD\u6587\u4EF6");
+        return null;
+      }
+      const latestBackup = backups[0];
+      if (latestBackup.settings) {
+        log("\u4ECE\u5907\u4EFD\u6062\u590D\u914D\u7F6E\u6210\u529F", latestBackup.timestamp);
+        return latestBackup.settings;
+      }
+    } catch (error) {
+      logError("\u4ECE\u5907\u4EFD\u6062\u590D\u914D\u7F6E\u5931\u8D25", error);
+    }
+    return null;
+  }
+  async loadAllBackups() {
+    try {
+      const data2 = await this.plugin.loadData() || {};
+      const backups = data2[this.BACKUP_KEY] || [];
+      if (!Array.isArray(backups)) {
+        log("\u5907\u4EFD\u6570\u636E\u683C\u5F0F\u65E0\u6548\uFF0C\u91CD\u65B0\u521D\u59CB\u5316");
+        return [];
+      }
+      return backups.filter((backup) => backup && backup.timestamp && backup.settings && typeof backup.settings === "object");
+    } catch (error) {
+      logError("\u52A0\u8F7D\u5907\u4EFD\u6570\u636E\u5931\u8D25", error);
+      return [];
+    }
+  }
+  isConfigMigrationNeeded(currentSettings, manifestVersion) {
+    const hasMinimalConfig = currentSettings.apiKey && currentSettings.apiKey !== DEFAULT_SETTINGS.apiKey;
+    const versionMismatch = currentSettings.version !== manifestVersion;
+    return !hasMinimalConfig || versionMismatch;
+  }
+  smartMergeSettings(currentSettings, backupSettings, manifestVersion) {
+    const userConfigFields = [
+      "apiKey",
+      "syncAt",
+      "folder",
+      "filename",
+      "customQuery",
+      "frequency",
+      "syncOnStart",
+      "folderDateFormat",
+      "filenameDateFormat",
+      "attachmentFolder",
+      "isSingleFile",
+      "frontMatterVariables",
+      "frontMatterTemplate",
+      "highlightOrder",
+      "enableHighlightColorRender",
+      "highlightManagerId",
+      "highlightColorMapping"
+    ];
+    const mergedSettings = { ...DEFAULT_SETTINGS, ...backupSettings };
+    for (const field of userConfigFields) {
+      const key = field;
+      const backupValue = backupSettings[key];
+      const currentValue = currentSettings[key];
+      if (this.isValidValue(backupValue)) {
+        ;
+        mergedSettings[key] = backupValue;
+        log(`\u6062\u590D\u914D\u7F6E\u5B57\u6BB5 ${field}:`, {
+          from: typeof backupValue === "string" && backupValue.length > 10 ? "***" : backupValue
+        });
+      } else if (this.isValidValue(currentValue)) {
+        ;
+        mergedSettings[key] = currentValue;
+      }
+    }
+    mergedSettings.version = manifestVersion;
+    log("\u667A\u80FD\u5408\u5E76\u914D\u7F6E\u5B8C\u6210", {
+      apiKeyRestored: this.isValidValue(backupSettings.apiKey),
+      syncAtRestored: this.isValidValue(backupSettings.syncAt),
+      version: manifestVersion
+    });
+    return mergedSettings;
+  }
+  isValidValue(value) {
+    if (value === void 0 || value === null) {
+      return false;
+    }
+    if (typeof value === "string") {
+      return value.trim() !== "";
+    }
+    return true;
+  }
+  showUpgradeNotice(fromVersion, toVersion, hasUserConfig) {
+    const message = hasUserConfig ? `\u7B14\u8BB0\u540C\u6B65\u52A9\u624B\u5DF2\u4ECE ${fromVersion} \u5347\u7EA7\u5230 ${toVersion}\uFF0C\u60A8\u7684\u914D\u7F6E\u5DF2\u81EA\u52A8\u4FDD\u7559\u3002` : `\u7B14\u8BB0\u540C\u6B65\u52A9\u624B\u5DF2\u5347\u7EA7\u5230 ${toVersion}\uFF0C\u5DF2\u4ECE\u5907\u4EFD\u6062\u590D\u60A8\u7684\u914D\u7F6E\u3002`;
+    new import_obsidian7.Notice(message, 8e3);
+  }
+  async performMigration(currentSettings, manifestVersion) {
+    log("\u5F00\u59CB\u914D\u7F6E\u8FC1\u79FB\u6D41\u7A0B");
+    const backupSettings = await this.restoreFromBackup();
+    if (backupSettings) {
+      const mergedSettings = this.smartMergeSettings(currentSettings, backupSettings, manifestVersion);
+      log("\u914D\u7F6E\u8FC1\u79FB\uFF1A\u4ECE\u5907\u4EFD\u6062\u590D\u914D\u7F6E", {
+        backupVersion: backupSettings.version,
+        targetVersion: manifestVersion,
+        hasApiKey: !!backupSettings.apiKey,
+        hasSyncAt: !!backupSettings.syncAt
+      });
+      return mergedSettings;
+    } else {
+      const updatedSettings = { ...currentSettings, version: manifestVersion };
+      log("\u914D\u7F6E\u8FC1\u79FB\uFF1A\u65E0\u5907\u4EFD\uFF0C\u4EC5\u66F4\u65B0\u7248\u672C", {
+        fromVersion: currentSettings.version,
+        toVersion: manifestVersion
+      });
+      return updatedSettings;
+    }
+  }
+  async getBackupInfo() {
+    try {
+      const backups = await this.loadAllBackups();
+      return {
+        count: backups.length,
+        latest: backups.length > 0 ? backups[0].timestamp : null
+      };
+    } catch (error) {
+      logError("\u83B7\u53D6\u5907\u4EFD\u4FE1\u606F\u5931\u8D25", error);
+      return { count: 0, latest: null };
+    }
+  }
+  async clearAllBackups() {
+    try {
+      await this.plugin.saveData({
+        [this.BACKUP_KEY]: []
+      });
+      log("\u6240\u6709\u5907\u4EFD\u5DF2\u6E05\u7406");
+    } catch (error) {
+      logError("\u6E05\u7406\u5907\u4EFD\u5931\u8D25", error);
+    }
+  }
 };
 
 // src/main.ts
-var OmnivorePlugin = class extends import_obsidian7.Plugin {
+var OmnivorePlugin = class extends import_obsidian8.Plugin {
   constructor() {
     super(...arguments);
     this.refreshTimeout = null;
   }
   async onload() {
-    await this.loadSettings();
-    await this.resetSyncingStateSetting();
-    const latestVersion = this.manifest.version;
-    const currentVersion = this.settings.version;
-    if (latestVersion !== currentVersion) {
-      this.settings.version = latestVersion;
-      this.settings.template = DEFAULT_SETTINGS.template;
-      await this.saveSettings();
-      const releaseNotes = `\u7B14\u8BB0\u540C\u6B65\u52A9\u624B\u5DF2\u5347\u7EA7\u5230\u7248\u672C ${latestVersion}\u3002
-
-    \u66F4\u65B0\u5185\u5BB9\uFF1A\u66F4\u65B0\u9ED8\u8BA4\u6587\u7AE0\u6A21\u677F\u683C\u5F0F
-    `;
-      new import_obsidian7.Notice(releaseNotes, 1e4);
-    }
+    console.log("\u{1F680} \u7B14\u8BB0\u540C\u6B65\u52A9\u624B\u542F\u52A8\u4E2D...");
+    await this.loadEssentialSettings();
+    this.registerCoreComponents();
     this.app.workspace.onLayoutReady(() => {
-      this.refreshFileExplorer();
+      setTimeout(() => {
+        this.initializeNonCriticalFeatures();
+      }, 1e3);
     });
+  }
+  async loadEssentialSettings() {
+    try {
+      const loadedData = await this.loadData();
+      this.settings = Object.assign({}, DEFAULT_SETTINGS, loadedData);
+      this.settings.syncing = false;
+      this.settings.intervalId = 0;
+    } catch (error) {
+      console.error("\u52A0\u8F7D\u57FA\u672C\u8BBE\u7F6E\u5931\u8D25:", error);
+      this.settings = { ...DEFAULT_SETTINGS };
+    }
+  }
+  registerCoreComponents() {
+    this.registerCommands();
+    this.registerRibbonIcon();
+    this.addSettingTab(new OmnivoreSettingTab(this.app, this));
+    if (this.settings.syncOnStart) {
+      this.app.workspace.onLayoutReady(() => {
+        setTimeout(async () => {
+          if (this.settings.apiKey) {
+            await this.fetchOmnivore(false);
+            this.refreshFileExplorer();
+          }
+        }, 2e3);
+      });
+    }
+  }
+  async initializeNonCriticalFeatures() {
+    try {
+      console.log("\u{1F680} \u521D\u59CB\u5316\u975E\u5173\u952E\u529F\u80FD...");
+      this.configMigrationManager = new ConfigMigrationManager(this.app, this);
+      await this.processSettingsCompatibility();
+      this.scheduleSync();
+      setOrUpdateHighlightColors(this.settings.highlightColorMapping);
+      this.refreshFileExplorer();
+      console.log("\u{1F680} \u975E\u5173\u952E\u529F\u80FD\u521D\u59CB\u5316\u5B8C\u6210");
+    } catch (error) {
+      console.error("\u975E\u5173\u952E\u529F\u80FD\u521D\u59CB\u5316\u5931\u8D25:", error);
+    }
+  }
+  async processSettingsCompatibility() {
+    try {
+      let needsSave = false;
+      if (this.settings.filter === "ADVANCED") {
+        this.settings.filter = "ALL";
+        this.settings.customQuery = `in:all ${this.settings.customQuery ? `(${this.settings.customQuery})` : ""}`;
+        needsSave = true;
+      }
+      if (!this.settings.customQuery) {
+        this.settings.customQuery = getQueryFromFilter(this.settings.filter);
+        needsSave = true;
+      }
+      if (needsSave) {
+        await this.saveSettings();
+      }
+    } catch (error) {
+      console.error("\u5904\u7406\u8BBE\u7F6E\u517C\u5BB9\u6027\u5931\u8D25:", error);
+    }
+  }
+  registerCommands() {
     this.addCommand({
       id: "sync",
       name: "Sync new changes",
@@ -19033,21 +19218,18 @@ var OmnivorePlugin = class extends import_obsidian7.Plugin {
       callback: async () => {
         this.settings.syncAt = "";
         await this.saveSettings();
-        new import_obsidian7.Notice("\u7B14\u8BB0\u540C\u6B65\u52A9\u624B\u6700\u540E\u540C\u6B65\u65F6\u95F4\u5DF2\u91CD\u7F6E");
+        new import_obsidian8.Notice("\u7B14\u8BB0\u540C\u6B65\u52A9\u624B\u6700\u540E\u540C\u6B65\u65F6\u95F4\u5DF2\u91CD\u7F6E");
         await this.fetchOmnivore();
       }
     });
+  }
+  registerRibbonIcon() {
     const iconId = "tongbuzhushou";
-    (0, import_obsidian7.addIcon)(iconId, `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">
-      <text x="2" y="13" font-size="12" font-family="Noto Sans SC, sans-serif" font-weight="bold" fill="currentColor">\u540C</text></svg>`), this.addRibbonIcon(iconId, iconId, async (evt) => {
+    (0, import_obsidian8.addIcon)(iconId, `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">
+      <text x="2" y="13" font-size="12" font-family="Noto Sans SC, sans-serif" font-weight="bold" fill="currentColor">\u540C</text></svg>`);
+    this.addRibbonIcon(iconId, iconId, async (evt) => {
       await this.fetchOmnivore();
     });
-    this.addSettingTab(new OmnivoreSettingTab(this.app, this));
-    this.scheduleSync();
-    if (this.settings.syncOnStart) {
-      await this.fetchOmnivore(false);
-      this.refreshFileExplorer();
-    }
   }
   onunload() {
     if (this.refreshTimeout) {
@@ -19055,25 +19237,15 @@ var OmnivorePlugin = class extends import_obsidian7.Plugin {
       this.refreshTimeout = null;
     }
   }
-  async loadSettings() {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
-    if (this.settings.filter === "ADVANCED") {
-      this.settings.filter = "ALL";
-      log("obsidian-omnivore: advanced filter is replaced with all filter");
-      const customQuery = this.settings.customQuery;
-      this.settings.customQuery = `in:all ${customQuery ? `(${customQuery})` : ""}`;
-      log(`obsidian-omnivore: custom query is set to ${this.settings.customQuery}`);
-      this.saveSettings();
-    }
-    if (!this.settings.customQuery) {
-      this.settings.customQuery = getQueryFromFilter(this.settings.filter);
-      log(`obsidian-omnivore: custom query is set to ${this.settings.customQuery}`);
-      this.saveSettings();
-    }
-    setOrUpdateHighlightColors(this.settings.highlightColorMapping);
-  }
   async saveSettings() {
     await this.saveData(this.settings);
+    if (this.configMigrationManager) {
+      try {
+        await this.configMigrationManager.backupSettings(this.settings);
+      } catch (error) {
+        log("\u914D\u7F6E\u5907\u4EFD\u65F6\u9047\u5230\u95EE\u9898\uFF0C\u4F46\u8BBE\u7F6E\u5DF2\u6B63\u5E38\u4FDD\u5B58", error);
+      }
+    }
   }
   async scheduleSync() {
     if (this.settings.intervalId > 0) {
@@ -19091,18 +19263,18 @@ var OmnivorePlugin = class extends import_obsidian7.Plugin {
   }
   async downloadFileAsAttachment(item) {
     const url = item.url;
-    const response = await (0, import_obsidian7.requestUrl)({
+    const response = await (0, import_obsidian8.requestUrl)({
       url,
       contentType: "application/pdf"
     });
-    const folderName = (0, import_obsidian7.normalizePath)(render3(item, this.settings.attachmentFolder, this.settings.folderDateFormat));
+    const folderName = (0, import_obsidian8.normalizePath)(render3(item, this.settings.attachmentFolder, this.settings.folderDateFormat));
     const folder = this.app.vault.getAbstractFileByPath(folderName);
-    if (!(folder instanceof import_obsidian7.TFolder)) {
+    if (!(folder instanceof import_obsidian8.TFolder)) {
       await this.app.vault.createFolder(folderName);
     }
-    const fileName = (0, import_obsidian7.normalizePath)(`${folderName}/${item.id}.pdf`);
+    const fileName = (0, import_obsidian8.normalizePath)(`${folderName}/${item.id}.pdf`);
     const file = this.app.vault.getAbstractFileByPath(fileName);
-    if (!(file instanceof import_obsidian7.TFile)) {
+    if (!(file instanceof import_obsidian8.TFile)) {
       const newFile = await this.app.vault.createBinary(fileName, response.arrayBuffer);
       return newFile.path;
     }
@@ -19123,18 +19295,18 @@ var OmnivorePlugin = class extends import_obsidian7.Plugin {
       frontMatterTemplate
     } = this.settings;
     if (syncing) {
-      new import_obsidian7.Notice("\u{1F422} \u6B63\u5728\u540C\u6B65\u4E2D...");
+      new import_obsidian8.Notice("\u{1F422} \u6B63\u5728\u540C\u6B65\u4E2D...");
       return;
     }
     if (!apiKey) {
-      new import_obsidian7.Notice("\u7F3A\u5C11 API \u5BC6\u94A5");
+      new import_obsidian8.Notice("\u7F3A\u5C11 API \u5BC6\u94A5");
       return;
     }
     this.settings.syncing = true;
     await this.saveSettings();
     try {
       log(`\u7B14\u8BB0\u540C\u6B65\u52A9\u624B\u5F00\u59CB\u540C\u6B65\uFF0C\u81EA: '${syncAt}'`);
-      manualSync && new import_obsidian7.Notice("\u{1F680} \u6B63\u5728\u83B7\u53D6\u6570\u636E...");
+      manualSync && new import_obsidian8.Notice("\u{1F680} \u6B63\u5728\u83B7\u53D6\u6570\u636E...");
       log("\u{1F527} \u5F00\u59CB\u89E3\u6790\u524D\u7AEF\u6A21\u677F");
       frontMatterTemplate && preParseTemplate(frontMatterTemplate);
       log("\u{1F527} \u5F00\u59CB\u89E3\u6790\u4E3B\u6A21\u677F");
@@ -19153,10 +19325,10 @@ var OmnivorePlugin = class extends import_obsidian7.Plugin {
         log(`\u{1F527} \u51C6\u5907\u5F00\u59CB\u5904\u7406\u6587\u7AE0`);
         for (const item of items) {
           log(`\u{1F527} \u5F00\u59CB\u5904\u7406\u6587\u7AE0: ${item.title}`);
-          const folderName = replaceIllegalCharsFolder((0, import_obsidian7.normalizePath)(render3(item, folder, this.settings.folderDateFormat)));
+          const folderName = replaceIllegalCharsFolder((0, import_obsidian8.normalizePath)(render3(item, folder, this.settings.folderDateFormat)));
           log(`\u{1F527} \u6587\u4EF6\u5939\u540D\u79F0: ${folderName}`);
           const omnivoreFolder = this.app.vault.getAbstractFileByPath(folderName);
-          if (!(omnivoreFolder instanceof import_obsidian7.TFolder)) {
+          if (!(omnivoreFolder instanceof import_obsidian8.TFolder)) {
             try {
               log(`\u{1F527} \u521B\u5EFA\u6587\u4EF6\u5939: ${folderName}`);
               await this.app.vault.createFolder(folderName);
@@ -19181,10 +19353,10 @@ var OmnivorePlugin = class extends import_obsidian7.Plugin {
           log(`\u{1F527} \u5185\u5BB9\u6E32\u67D3\u5B8C\u6210`);
           const customFilename = replaceIllegalCharsFile(renderFilename(item, filename, this.settings.filenameDateFormat));
           const pageName = `${folderName}/${customFilename}.md`;
-          const normalizedPath = (0, import_obsidian7.normalizePath)(pageName);
+          const normalizedPath = (0, import_obsidian8.normalizePath)(pageName);
           log(`\u{1F527} \u51C6\u5907\u521B\u5EFA/\u66F4\u65B0\u6587\u4EF6: ${normalizedPath}`);
           const omnivoreFile = this.app.vault.getAbstractFileByPath(normalizedPath);
-          if (omnivoreFile instanceof import_obsidian7.TFile) {
+          if (omnivoreFile instanceof import_obsidian8.TFile) {
             if (isSingleFile) {
               const existingContent = await this.app.vault.read(omnivoreFile);
               const contentWithoutFrontmatter = removeFrontMatterFromContent(content);
@@ -19212,7 +19384,7 @@ ${existingContentWithoutFrontmatter}`;
                 existingFrontMatter.unshift(newFrontMatter[0]);
               }
               const newFrontMatterStr = `---
-${(0, import_obsidian7.stringifyYaml)(existingFrontMatter)}---`;
+${(0, import_obsidian8.stringifyYaml)(existingFrontMatter)}---`;
               await this.app.vault.modify(omnivoreFile, `${newFrontMatterStr}
 
 ${newContentWithoutFrontMatter}`);
@@ -19222,9 +19394,9 @@ ${newContentWithoutFrontMatter}`);
               const id = frontMatter.id;
               if (id && id !== item.id) {
                 const newPageName = `${folderName}/${customFilename}-${item.id}.md`;
-                const newNormalizedPath = (0, import_obsidian7.normalizePath)(newPageName);
+                const newNormalizedPath = (0, import_obsidian8.normalizePath)(newPageName);
                 const newOmnivoreFile = this.app.vault.getAbstractFileByPath(newNormalizedPath);
-                if (newOmnivoreFile instanceof import_obsidian7.TFile) {
+                if (newOmnivoreFile instanceof import_obsidian8.TFile) {
                   const existingContent2 = await this.app.vault.read(newOmnivoreFile);
                   if (existingContent2 !== content) {
                     await this.app.vault.modify(newOmnivoreFile, content);
@@ -19250,7 +19422,7 @@ ${newContentWithoutFrontMatter}`);
               log(`\u{1F527} \u6587\u4EF6\u5DF2\u5B58\u5728\uFF0C\u8DF3\u8FC7\u521B\u5EFA: ${normalizedPath}`);
             } else {
               logError(`\u{1F527} \u6587\u4EF6\u521B\u5EFA\u5931\u8D25: ${normalizedPath}`, error);
-              new import_obsidian7.Notice(`\u6587\u4EF6\u521B\u5EFA\u5931\u8D25: ${normalizedPath}`, 3e3);
+              new import_obsidian8.Notice(`\u6587\u4EF6\u521B\u5EFA\u5931\u8D25: ${normalizedPath}`, 3e3);
             }
           }
           log(`\u{1F527} \u6587\u7AE0\u5904\u7406\u5B8C\u6210: ${item.title}`);
@@ -19263,10 +19435,10 @@ ${newContentWithoutFrontMatter}`);
       this.settings.syncAt = DateTime.local().toFormat(DATE_FORMAT);
       await this.saveSettings();
       log("\u7B14\u8BB0\u540C\u6B65\u52A9\u624B\u540C\u6B65\u5B8C\u6210", this.settings.syncAt);
-      manualSync && new import_obsidian7.Notice("\u{1F389} \u540C\u6B65\u5B8C\u6210");
+      manualSync && new import_obsidian8.Notice("\u{1F389} \u540C\u6B65\u5B8C\u6210");
       this.refreshFileExplorer();
     } catch (e) {
-      new import_obsidian7.Notice("\u83B7\u53D6\u6570\u636E\u5931\u8D25");
+      new import_obsidian8.Notice("\u83B7\u53D6\u6570\u636E\u5931\u8D25");
       logError(e);
     } finally {
       this.settings.syncing = false;
@@ -19284,23 +19456,18 @@ ${newContentWithoutFrontMatter}`);
     }
     const itemId = this.app.metadataCache.getFileCache(file)?.frontmatter?.id;
     if (!itemId) {
-      new import_obsidian7.Notice("\u5220\u9664\u6587\u7AE0\u5931\u8D25\uFF1A\u6587\u7AE0 ID \u672A\u627E\u5230");
+      new import_obsidian8.Notice("\u5220\u9664\u6587\u7AE0\u5931\u8D25\uFF1A\u6587\u7AE0 ID \u672A\u627E\u5230");
     }
     try {
       const isDeleted = deleteItem(this.settings.endpoint, this.settings.apiKey, itemId);
       if (!isDeleted) {
-        new import_obsidian7.Notice("\u5220\u9664\u6587\u7AE0\u5931\u8D25");
+        new import_obsidian8.Notice("\u5220\u9664\u6587\u7AE0\u5931\u8D25");
       }
     } catch (e) {
-      new import_obsidian7.Notice("Failed to delete article in Omnivore");
+      new import_obsidian8.Notice("Failed to delete article in Omnivore");
       logError(e);
     }
     await this.app.vault.delete(file);
-  }
-  async resetSyncingStateSetting() {
-    this.settings.syncing = false;
-    this.settings.intervalId = 0;
-    await this.saveSettings();
   }
   refreshFileExplorer() {
     if (this.refreshTimeout) {

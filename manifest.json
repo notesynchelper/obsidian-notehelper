@@ -1,7 +1,7 @@
 {
 	"id": "notehelper",
 	"name": "笔记同步助手",
-	"version": "2.2.0",
+	"version": "2.3.1",
 	"minAppVersion": "0.15.0",
 	"description": "笔记同步助手 - 用于同步笔记和文章到 Obsidian 的插件",
 	"author": "NoteHelper Team",
