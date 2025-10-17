@@ -18972,9 +18972,9 @@ var ConfigMigrationManager = class {
       const existingBackups = await this.loadAllBackups();
       existingBackups.unshift(backupData);
       const limitedBackups = existingBackups.slice(0, this.MAX_BACKUPS);
-      await this.plugin.saveData({
-        [this.BACKUP_KEY]: limitedBackups
-      });
+      const currentData = await this.plugin.loadData() || {};
+      currentData[this.BACKUP_KEY] = limitedBackups;
+      await this.plugin.saveData(currentData);
       log("\u914D\u7F6E\u5907\u4EFD\u6210\u529F", {
         backupCount: limitedBackups.length,
         latestBackup: backupData.timestamp
@@ -19111,9 +19111,9 @@ var ConfigMigrationManager = class {
   }
   async clearAllBackups() {
     try {
-      await this.plugin.saveData({
-        [this.BACKUP_KEY]: []
-      });
+      const currentData = await this.plugin.loadData() || {};
+      currentData[this.BACKUP_KEY] = [];
+      await this.plugin.saveData(currentData);
       log("\u6240\u6709\u5907\u4EFD\u5DF2\u6E05\u7406");
     } catch (error) {
       logError("\u6E05\u7406\u5907\u4EFD\u5931\u8D25", error);

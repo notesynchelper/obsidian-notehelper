@@ -1,127 +1,37 @@
-# 笔记同步助手 (NoteHelper)
+# obsidian-omnivore
 
-一个Obsidian插件，用于同步笔记和文章到Obsidian，支持多种数据源的导入和同步，关注笔记同步助手公众号使用
+This plugin imports your saved [Omnivore](https://omnivore.app/) articles and highlights into Obsidian.
 
-## 功能特点
+## Features
 
-* 📝 支持微信转发保存
-* 🎯 智能内容解析和格式化
-* 🏷️ 自动标签和分类管理
-* 🔗 保持原始链接和元数据
-* ⚡ 实时同步和增量更新
+* Import your highlights and saved article
+* Create graphs based on Omnivore data
+* Filter imported data using Omnivores [advanced search syntax](https://docs.omnivore.app/using/search.html)
+* Custom templates for imported data
 
-## 安装方法
+## Installation
 
-### 从社区插件安装 (推荐)
+1. Install the plugin from the community or build it from source and load unpacked plugin
+2. Sign up for an [Omnivore account](https://omnivore.app)
+3. Go to [Omnivore](https://omnivore.app/settings/api) and Create an API key
+4. Open settings and add your api key
 
-1. 打开Obsidian设置
-2. 进入"第三方插件"
-3. 禁用"安全模式"
-4. 点击"浏览"搜索"笔记同步助手"
-5. 安装并启用插件
+## Usage
 
-### 手动安装
+1. The plugin will sync with Omnivore when you click on Omnivore ribbon icon or use the palette command
+2. You can also change the API key, the search filter, and how often the plugin syncs with Omnivore by updating the settings
+3. The plugin creates a new page for each saved article including metadata, labels. Content you have highlighted in Omnivore, and any notes you added, will be nested in the article page
+4. Clicking on the article will open the Omnivore article in a new tab
+5. We also create an internal link to each label in the article so you can group articles by label
 
-1. 下载最新发布版本的文件
-2. 将文件解压到Obsidian插件文件夹：`{VaultFolder}/.obsidian/plugins/notehelper/`
-3. 重新加载Obsidian或重启应用
-4. 在设置中启用"笔记同步助手"插件
+## Contacts
 
-## 使用方法
+[Omnivore](https://github.com/omnivore-app)
 
-### 基本设置
+## Contributing
 
-1. 安装插件后，在设置页面找到"笔记同步助手"
-2. 配置你的数据源API密钥或访问令牌
-3. 设置同步频率和过滤条件
-4. 选择同步目标文件夹
+Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
 
-### 同步操作
+## License
 
-- **手动同步**: 点击工具栏的同步图标或使用命令面板中的"笔记同步助手: 同步"
-- **自动同步**: 插件会根据设置的间隔自动同步新内容
-- **增量同步**: 只同步自上次同步以来的新内容，提高效率
-
-### 内容管理
-
-- 同步的内容会自动创建为Obsidian笔记
-- 支持标签、链接、图片等富文本内容
-- 保留原始来源的元数据信息
-- 自动生成内部链接便于知识图谱构建
-
-## 配置选项
-
-| 选项       | 描述               | 默认值    |
-| ---------- | ------------------ | --------- |
-| API密钥    | 数据源访问密钥     | 无        |
-| 同步间隔   | 自动同步时间间隔   | 15分钟    |
-| 目标文件夹 | 同步内容保存位置   | /同步笔记 |
-| 过滤规则   | 内容过滤和筛选条件 | 无        |
-| 模板设置   | 自定义笔记模板     | 默认模板  |
-
-## 支持的数据源
-
-- 📧 企业微信消息
-- 📚 网页文章和书签
-- 📱 移动端笔记应用
-- 🗂️ 其他笔记平台
-
-## 常见问题
-
-### Q: 如何获取API密钥？
-
-A: 请查看对应数据源的官方文档，通常在账户设置或开发者选项中可以生成API密钥。
-
-### Q: 同步失败怎么办？
-
-A: 请检查网络连接、API密钥是否正确，或查看Obsidian控制台的错误信息。
-
-### Q: 如何自定义笔记模板？
-
-A: 在插件设置中可以修改笔记模板，支持使用变量和Markdown格式。
-
-## 开发和贡献
-
-欢迎提交问题报告和功能建议！
-
-### 本地开发
-
-```bash
-# 克隆仓库
-git clone [repository-url]
-
-# 安装依赖
-npm install
-
-# 开发模式
-npm run dev
-
-# 构建插件
-npm run build
-```
-
-### 贡献指南
-
-1. Fork 项目
-2. 创建功能分支
-3. 提交更改
-4. 推送到分支
-5. 创建Pull Request
-
-## 许可证
-
-MIT License - 详见 [LICENSE](LICENSE) 文件
-
-## 联系方式
-
-- 📧 Email: frank@onenotes.app
-- 🐛 问题报告: [GitHub Issues](https://github.com/notehelper/obsidian-notehelper/issues)
-- 💡 功能建议: [GitHub Discussions](https://github.com/notehelper/obsidian-notehelper/discussions)
-
-## 版本历史
-
-查看 [CHANGELOG.md](CHANGELOG.md) 了解详细的版本更新信息。
-
----
-
-如果这个插件对你有帮助，请考虑给项目加个⭐星标支持一下！
+[MIT](https://choosealicense.com/licenses/mit/)
