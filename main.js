@@ -15315,6 +15315,60 @@ var deleteItem = async (endpoint, apiKey, articleId) => {
   await omnivore.items.delete({ id: articleId });
   return true;
 };
+var getArticleCount = async (endpoint, apiKey) => {
+  console.log("\u{1F527} getArticleCount\u8C03\u7528\u53C2\u6570:", { endpoint, apiKey: apiKey ? "***" : "(\u7A7A)" });
+  if (LOCAL_TEST_CONFIG.ENABLE_LOCAL_TEST && (!apiKey || apiKey.trim() === "")) {
+    apiKey = LOCAL_TEST_CONFIG.TEST_API_KEY;
+    console.log("\u{1F527} \u672C\u5730\u6D4B\u8BD5\u6A21\u5F0F\uFF1A\u4F7F\u7528\u9ED8\u8BA4\u6D4B\u8BD5API\u5BC6\u94A5");
+  }
+  try {
+    const apiUrl = endpoint.replace("/api/graphql", "/api/stats/article-count");
+    console.log("\u{1F527} \u8BF7\u6C42URL:", apiUrl);
+    const headers = {
+      "Content-Type": "application/json"
+    };
+    if (apiKey) {
+      headers["Authorization"] = `Bearer ${apiKey}`;
+    }
+    const response = await (0, import_obsidian.requestUrl)({
+      url: apiUrl,
+      method: "GET",
+      headers
+    });
+    console.log("\u{1F527} \u83B7\u53D6\u6587\u7AE0\u6570\u91CF\u54CD\u5E94:", response.json);
+    return response.json.count || 0;
+  } catch (error) {
+    console.error("\u83B7\u53D6\u6587\u7AE0\u6570\u91CF\u5931\u8D25:", error);
+    throw error;
+  }
+};
+var clearAllArticles = async (endpoint, apiKey) => {
+  console.log("\u{1F527} clearAllArticles\u8C03\u7528\u53C2\u6570:", { endpoint, apiKey: apiKey ? "***" : "(\u7A7A)" });
+  if (LOCAL_TEST_CONFIG.ENABLE_LOCAL_TEST && (!apiKey || apiKey.trim() === "")) {
+    apiKey = LOCAL_TEST_CONFIG.TEST_API_KEY;
+    console.log("\u{1F527} \u672C\u5730\u6D4B\u8BD5\u6A21\u5F0F\uFF1A\u4F7F\u7528\u9ED8\u8BA4\u6D4B\u8BD5API\u5BC6\u94A5");
+  }
+  try {
+    const apiUrl = endpoint.replace("/api/graphql", "/api/articles/clear");
+    console.log("\u{1F527} \u8BF7\u6C42URL:", apiUrl);
+    const headers = {
+      "Content-Type": "application/json"
+    };
+    if (apiKey) {
+      headers["Authorization"] = `Bearer ${apiKey}`;
+    }
+    const response = await (0, import_obsidian.requestUrl)({
+      url: apiUrl,
+      method: "DELETE",
+      headers
+    });
+    console.log("\u{1F527} \u6E05\u7A7A\u6587\u7AE0\u54CD\u5E94:", response.json);
+    return response.json;
+  } catch (error) {
+    console.error("\u6E05\u7A7A\u6587\u7AE0\u5931\u8D25:", error);
+    throw error;
+  }
+};
 
 // src/logger.ts
 var isDevelopment2 = BUILD_CONFIG.IS_DEVELOPMENT;
@@ -18605,6 +18659,55 @@ var OmnivoreSettingTab = class extends import_obsidian6.PluginSettingTab {
       this.plugin.settings.apiKey = value;
       await this.plugin.saveSettings();
     }));
+    containerEl.createEl("h3", { text: "\u6587\u7AE0\u7BA1\u7406" });
+    const articleCountSetting = new import_obsidian6.Setting(containerEl).setName("\u4E91\u7A7A\u95F4\u6587\u7AE0\u6570\u91CF").setDesc("--");
+    articleCountSetting.addButton((button) => {
+      button.setButtonText("\u5237\u65B0").setCta().onClick(async () => {
+        try {
+          button.setDisabled(true);
+          button.setButtonText("\u5237\u65B0\u4E2D...");
+          const count = await getArticleCount(this.plugin.settings.endpoint, this.plugin.settings.apiKey);
+          articleCountSetting.setDesc(`${count} \u7BC7\u6587\u7AE0`);
+          new import_obsidian6.Notice(`\u5F53\u524D\u6709 ${count} \u7BC7\u6587\u7AE0`);
+        } catch (error) {
+          console.error("\u83B7\u53D6\u6587\u7AE0\u6570\u91CF\u5931\u8D25:", error);
+          new import_obsidian6.Notice("\u83B7\u53D6\u6587\u7AE0\u6570\u91CF\u5931\u8D25\uFF0C\u8BF7\u68C0\u67E5API\u5BC6\u94A5\u662F\u5426\u6B63\u786E");
+          articleCountSetting.setDesc("\u83B7\u53D6\u5931\u8D25");
+        } finally {
+          button.setDisabled(false);
+          button.setButtonText("\u5237\u65B0");
+        }
+      });
+    });
+    articleCountSetting.addButton((button) => {
+      button.setButtonText("\u6E05\u7A7A\u4E91\u7A7A\u95F4").setWarning().onClick(async () => {
+        const confirmModal = new ConfirmModal(this.app, "\u6E05\u7A7A\u4E91\u7A7A\u95F4\u6587\u7AE0", "\u26A0\uFE0F \u6B64\u64CD\u4F5C\u5C06\u5220\u9664\u4E91\u7A7A\u95F4\u4E2D\u7684\u6240\u6709\u6587\u7AE0\uFF0C\u4E14\u65E0\u6CD5\u6062\u590D\u3002\n\n\u60A8\u786E\u5B9A\u8981\u7EE7\u7EED\u5417\uFF1F", async () => {
+          try {
+            button.setDisabled(true);
+            button.setButtonText("\u6E05\u7A7A\u4E2D...");
+            new import_obsidian6.Notice("\u6B63\u5728\u6E05\u7A7A\u6587\u7AE0...");
+            const result = await clearAllArticles(this.plugin.settings.endpoint, this.plugin.settings.apiKey);
+            new import_obsidian6.Notice(`\u5DF2\u6E05\u7A7A ${result.deletedCount} \u7BC7\u6587\u7AE0`);
+            articleCountSetting.setDesc("0 \u7BC7\u6587\u7AE0");
+            setTimeout(async () => {
+              try {
+                const count = await getArticleCount(this.plugin.settings.endpoint, this.plugin.settings.apiKey);
+                articleCountSetting.setDesc(`${count} \u7BC7\u6587\u7AE0`);
+              } catch (error) {
+                console.error("\u5237\u65B0\u6587\u7AE0\u6570\u91CF\u5931\u8D25:", error);
+              }
+            }, 1e3);
+          } catch (error) {
+            console.error("\u6E05\u7A7A\u6587\u7AE0\u5931\u8D25:", error);
+            new import_obsidian6.Notice("\u6E05\u7A7A\u6587\u7AE0\u5931\u8D25\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5");
+          } finally {
+            button.setDisabled(false);
+            button.setButtonText("\u6E05\u7A7A\u4E91\u7A7A\u95F4");
+          }
+        });
+        confirmModal.open();
+      });
+    });
     containerEl.createEl("h3", { text: "\u67E5\u8BE2" });
     new import_obsidian6.Setting(containerEl).setName("\u7B5B\u9009\u5668").setDesc('\u76EE\u524D\u53EA\u652F\u6301\u540C\u6B65\u6240\u6709\u6587\u7AE0\u3002\u53EF\u4EE5\u901A\u8FC7\u8BBE\u7F6E"\u6700\u540E\u540C\u6B65"\u65F6\u95F4\u6765\u63A7\u5236\u540C\u6B65\u8303\u56F4\uFF0C\u53EA\u4F1A\u540C\u6B65\u5728\u8BE5\u65F6\u95F4\u70B9\u4E4B\u540E\u4FDD\u5B58\u6216\u66F4\u65B0\u7684\u6587\u7AE0\u3002').addDropdown((dropdown) => {
       dropdown.addOptions(Filter);
@@ -18950,6 +19053,43 @@ var OmnivoreSettingTab = class extends import_obsidian6.PluginSettingTab {
     } catch (error) {
       logError("\u8BBE\u7F6E\u9875\u9762\uFF1A\u914D\u7F6E\u8FC1\u79FB\u5931\u8D25", error);
     }
+  }
+};
+var ConfirmModal = class extends import_obsidian6.Modal {
+  constructor(app, title, message, onConfirm) {
+    super(app);
+    this.title = title;
+    this.message = message;
+    this.onConfirm = onConfirm;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.createEl("h2", { text: this.title });
+    contentEl.createEl("p", {
+      text: this.message
+    }).style.cssText = "white-space: pre-wrap; margin: 20px 0;";
+    const buttonContainer = contentEl.createDiv();
+    buttonContainer.style.cssText = "display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;";
+    const cancelButton = buttonContainer.createEl("button", {
+      text: "\u53D6\u6D88"
+    });
+    cancelButton.style.cssText = "padding: 5px 15px;";
+    cancelButton.onclick = () => {
+      this.close();
+    };
+    const confirmButton = buttonContainer.createEl("button", {
+      text: "\u786E\u8BA4",
+      cls: "mod-warning"
+    });
+    confirmButton.style.cssText = "padding: 5px 15px;";
+    confirmButton.onclick = async () => {
+      await this.onConfirm();
+      this.close();
+    };
+  }
+  onClose() {
+    const { contentEl } = this;
+    contentEl.empty();
   }
 };
 
