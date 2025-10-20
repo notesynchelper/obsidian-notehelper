@@ -19533,17 +19533,40 @@ ${newContentWithoutFrontMatter}`);
             await this.app.fileManager.processFrontMatter(omnivoreFile, async (frontMatter) => {
               const id = frontMatter.id;
               if (id && id !== item.id) {
-                const newPageName = `${folderName}/${customFilename}-${item.id}.md`;
-                const newNormalizedPath = (0, import_obsidian8.normalizePath)(newPageName);
-                const newOmnivoreFile = this.app.vault.getAbstractFileByPath(newNormalizedPath);
-                if (newOmnivoreFile instanceof import_obsidian8.TFile) {
-                  const existingContent2 = await this.app.vault.read(newOmnivoreFile);
-                  if (existingContent2 !== content) {
-                    await this.app.vault.modify(newOmnivoreFile, content);
+                let suffix = 2;
+                let newPageName = `${folderName}/${customFilename} ${suffix}.md`;
+                let newNormalizedPath = (0, import_obsidian8.normalizePath)(newPageName);
+                let newOmnivoreFile = this.app.vault.getAbstractFileByPath(newNormalizedPath);
+                while (newOmnivoreFile instanceof import_obsidian8.TFile) {
+                  const existingFrontMatter = this.app.metadataCache.getFileCache(newOmnivoreFile)?.frontmatter;
+                  if (existingFrontMatter?.id === item.id) {
+                    const existingContent2 = await this.app.vault.read(newOmnivoreFile);
+                    if (existingContent2 !== content) {
+                      await this.app.vault.modify(newOmnivoreFile, content);
+                    }
+                    return;
                   }
-                  return;
+                  suffix++;
+                  newPageName = `${folderName}/${customFilename} ${suffix}.md`;
+                  newNormalizedPath = (0, import_obsidian8.normalizePath)(newPageName);
+                  newOmnivoreFile = this.app.vault.getAbstractFileByPath(newNormalizedPath);
                 }
-                await this.app.vault.create(newNormalizedPath, content);
+                try {
+                  log(`\u{1F527} \u521B\u5EFA\u540C\u540D\u6587\u4EF6\uFF08\u7F16\u53F7 ${suffix}\uFF09: ${newNormalizedPath}`);
+                  await this.app.vault.create(newNormalizedPath, content);
+                  log(`\u{1F527} \u6587\u4EF6\u521B\u5EFA\u6210\u529F: ${newNormalizedPath}`);
+                } catch (error) {
+                  if (error.toString().includes("File already exists")) {
+                    log(`\u{1F527} \u6587\u4EF6\u5DF2\u5B58\u5728\uFF0C\u5C1D\u8BD5\u66F4\u65B0: ${newNormalizedPath}`);
+                    const existingFile = this.app.vault.getAbstractFileByPath(newNormalizedPath);
+                    if (existingFile instanceof import_obsidian8.TFile) {
+                      await this.app.vault.modify(existingFile, content);
+                    }
+                  } else {
+                    logError(`\u{1F527} \u6587\u4EF6\u521B\u5EFA\u5931\u8D25: ${newNormalizedPath}`, error);
+                    throw error;
+                  }
+                }
                 return;
               }
               const existingContent = await this.app.vault.read(omnivoreFile);
