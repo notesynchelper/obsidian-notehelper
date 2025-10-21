@@ -15020,389 +15020,6 @@ function friendlyDateTime(dateTimeish) {
   }
 }
 
-// src/main.ts
-var import_obsidian8 = require("obsidian");
-
-// src/api.ts
-var import_api = __toESM(require_src());
-var import_obsidian = require("obsidian");
-
-// src/build-config.ts
-var isLocalTest = false;
-var isDevelopment = false;
-var BUILD_CONFIG = {
-  IS_LOCAL_TEST: isLocalTest,
-  IS_DEVELOPMENT: isDevelopment,
-  LOCAL_API_BASE_URL: "http://localhost:3001",
-  VERSION: "1.10.4-local-test"
-};
-
-// src/settings/local-test.ts
-var LOCAL_TEST_CONFIG = {
-  TEST_API_KEY: "o56E762Lh_yloQuLk1Gfim3Xksxs",
-  LOCAL_API_BASE_URL: "http://localhost:3002",
-  LOCAL_GRAPHQL_ENDPOINT: "http://localhost:3002/api/graphql",
-  LOCAL_CONTENT_ENDPOINT: "http://localhost:3002/api/content",
-  ENABLE_LOCAL_TEST: BUILD_CONFIG.IS_LOCAL_TEST
-};
-var getEndpointUrl = (defaultEndpoint) => {
-  if (LOCAL_TEST_CONFIG.ENABLE_LOCAL_TEST) {
-    console.log("\u{1F527} \u672C\u5730\u6D4B\u8BD5\u6A21\u5F0F\u5DF2\u542F\u7528\uFF0C\u4F7F\u7528Mock\u670D\u52A1\u5668:", LOCAL_TEST_CONFIG.LOCAL_GRAPHQL_ENDPOINT);
-    return LOCAL_TEST_CONFIG.LOCAL_GRAPHQL_ENDPOINT;
-  }
-  return defaultEndpoint;
-};
-var getContentApiUrl = (endpoint) => {
-  if (LOCAL_TEST_CONFIG.ENABLE_LOCAL_TEST) {
-    console.log("\u{1F527} \u672C\u5730\u6D4B\u8BD5\u6A21\u5F0F\uFF1A\u5185\u5BB9API\u91CD\u5B9A\u5411\u5230:", LOCAL_TEST_CONFIG.LOCAL_CONTENT_ENDPOINT);
-    return LOCAL_TEST_CONFIG.LOCAL_CONTENT_ENDPOINT;
-  }
-  return endpoint.replace(/\/api\/graphql$/, "/api/content");
-};
-
-// src/api.ts
-var baseUrl = (endpoint) => endpoint.replace(/\/api\/graphql$/, "");
-var searchCustomServerItems = async (endpoint, after, first, query, apiKey) => {
-  const searchQuery = `
-    query Search($after: Int, $first: Int, $query: String) {
-      search(after: $after, first: $first, query: $query) {
-        items {
-          id
-          title
-          author
-          content
-          originalUrl
-          savedAt
-          updatedAt
-          publishedAt
-          description
-          siteName
-          slug
-          image
-          pageType
-          contentReader
-          wordsCount
-          readingProgressPercent
-          isArchived
-          archivedAt
-          readAt
-          highlights {
-            id
-            type
-            quote
-            prefix
-            suffix
-            patch
-            annotation
-            createdAt
-            updatedAt
-            highlightPositionPercent
-            shortId
-          }
-          labels {
-            id
-            name
-            color
-            user_id
-            created_at
-            updated_at
-          }
-        }
-        pageInfo {
-          hasNextPage
-          hasPreviousPage
-          startCursor
-          endCursor
-          totalCount
-        }
-      }
-    }`;
-  const variables = {
-    after,
-    first,
-    query
-  };
-  const endpointUrl = endpoint;
-  const headers = {
-    "Content-Type": "application/json"
-  };
-  if (apiKey) {
-    headers["x-api-key"] = apiKey;
-  }
-  const response = await (0, import_obsidian.requestUrl)({
-    url: endpointUrl,
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      query: searchQuery,
-      variables
-    })
-  });
-  return response.json;
-};
-var searchLocalItems = async (endpoint, after, first, query, apiKey) => {
-  const searchQuery = `
-    query Search($after: Int, $first: Int, $query: String) {
-      search(after: $after, first: $first, query: $query) {
-        items {
-          id
-          title
-          author
-          content
-          originalUrl
-          savedAt
-          updatedAt
-          isArchived
-          highlights {
-            id
-            quote
-            note
-          }
-        }
-        pageInfo {
-          hasNextPage
-          hasPreviousPage
-          startCursor
-          endCursor
-          totalCount
-        }
-      }
-    }
-  `;
-  const headers = {
-    "Content-Type": "application/json"
-  };
-  if (LOCAL_TEST_CONFIG.ENABLE_LOCAL_TEST && apiKey) {
-    headers["Authorization"] = `Bearer ${apiKey}`;
-  }
-  const response = await (0, import_obsidian.requestUrl)({
-    url: endpoint,
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      query: searchQuery,
-      variables: { after, first, query }
-    })
-  });
-  return response.json;
-};
-var getContent = async (endpoint, apiKey, libraryItemIds) => {
-  const response = await (0, import_obsidian.requestUrl)({
-    url: getContentApiUrl(endpoint),
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: apiKey
-    },
-    body: JSON.stringify({ libraryItemIds, format: "highlightedMarkdown" })
-  });
-  return response.json;
-};
-var downloadFromUrl = async (url) => {
-  try {
-    const response = await (0, import_obsidian.requestUrl)({
-      url
-    });
-    return response.text;
-  } catch (error) {
-    if (error.status === 404) {
-      await sleep(1e3);
-      return downloadFromUrl(url);
-    }
-    throw error;
-  }
-};
-var fetchContentForItems = async (endpoint, apiKey, items) => {
-  const content = await getContent(endpoint, apiKey, items.map((a) => a.id));
-  await Promise.allSettled(content.data.map(async (c) => {
-    if (c.error) {
-      console.error("Error fetching content", c.error);
-      return;
-    }
-    const item = items.find((i) => i.id === c.libraryItemId);
-    if (!item) {
-      console.error("Item not found", c.libraryItemId);
-      return;
-    }
-    item.content = await Promise.race([
-      downloadFromUrl(c.downloadUrl),
-      new Promise((_, reject) => setTimeout(() => reject("Timeout"), 6e5))
-    ]);
-  }));
-};
-var getItems = async (endpoint, apiKey, after = 0, first = 10, updatedAt = "", query = "", includeContent = false, format = "html") => {
-  console.log("\u{1F527} getItems\u8C03\u7528\u53C2\u6570:", { endpoint, apiKey, after, first, updatedAt, query });
-  if (LOCAL_TEST_CONFIG.ENABLE_LOCAL_TEST && (!apiKey || apiKey.trim() === "")) {
-    apiKey = LOCAL_TEST_CONFIG.TEST_API_KEY;
-    console.log("\u{1F527} \u672C\u5730\u6D4B\u8BD5\u6A21\u5F0F\uFF1A\u4F7F\u7528\u9ED8\u8BA4\u6D4B\u8BD5API\u5BC6\u94A5");
-  }
-  console.log("\u{1F527} \u68C0\u67E5endpoint:", endpoint);
-  console.log("\u{1F527} \u662F\u5426\u5305\u542Bobsidian.notebooksyncer.com:", endpoint.includes("obsidian.notebooksyncer.com"));
-  if (endpoint.includes("obsidian.notebooksyncer.com")) {
-    console.log("\u{1F527} \u4F7F\u7528\u81EA\u5B9A\u4E49\u670D\u52A1\u5668\u83B7\u53D6\u6570\u636E");
-    try {
-      const searchQuery = `${updatedAt ? "updated:" + updatedAt : ""} sort:saved-asc ${query}`.trim();
-      const response2 = await searchCustomServerItems(endpoint, after, first, searchQuery, apiKey);
-      console.log("\u{1F527} \u81EA\u5B9A\u4E49\u670D\u52A1\u5668\u54CD\u5E94:", response2);
-      console.log("\u{1F527} response.edges:", response2.edges);
-      console.log("\u{1F527} response.pageInfo:", response2.pageInfo);
-      if (!response2.edges) {
-        console.error("\u{1F527} response.edges is undefined, full response:", JSON.stringify(response2, null, 2));
-        throw new Error("\u670D\u52A1\u5668\u54CD\u5E94\u683C\u5F0F\u9519\u8BEF\uFF1A\u7F3A\u5C11edges\u5B57\u6BB5");
-      }
-      const items2 = response2.edges.map((e) => e.node);
-      const hasNextPage = response2.pageInfo.hasNextPage;
-      console.log(`\u{1F527} \u81EA\u5B9A\u4E49\u670D\u52A1\u5668\u83B7\u53D6\u5230 ${items2.length} \u7BC7\u6587\u7AE0`);
-      console.log(`\u{1F527} includeContent: ${includeContent}`);
-      if (includeContent && items2.length > 0) {
-        console.log("\u{1F527} \u81EA\u5B9A\u4E49\u670D\u52A1\u5668\u8DF3\u8FC7\u5185\u5BB9\u83B7\u53D6\uFF08\u5185\u5BB9\u5DF2\u5728GraphQL\u54CD\u5E94\u4E2D\uFF09");
-      }
-      console.log("\u{1F527} \u51C6\u5907\u8FD4\u56DE\u6570\u636E");
-      return [items2, hasNextPage];
-    } catch (error) {
-      console.error("\u81EA\u5B9A\u4E49\u670D\u52A1\u5668\u8FDE\u63A5\u5931\u8D25:", error);
-      throw error;
-    }
-  }
-  if (LOCAL_TEST_CONFIG.ENABLE_LOCAL_TEST) {
-    console.log("\u{1F527} \u4F7F\u7528\u672C\u5730Mock\u670D\u52A1\u5668\u83B7\u53D6\u6570\u636E");
-    try {
-      const searchQuery = `${updatedAt ? "updated:" + updatedAt : ""} sort:saved-asc ${query}`.trim();
-      const response2 = await searchLocalItems(endpoint, after, first, searchQuery, apiKey);
-      const items2 = response2.data.search.items;
-      const hasNextPage = response2.data.search.pageInfo.hasNextPage;
-      if (includeContent && items2.length > 0) {
-        try {
-          await fetchContentForItems(endpoint, apiKey, items2);
-        } catch (error) {
-          console.error("Error fetching content from local server", error);
-        }
-      }
-      return [items2, hasNextPage];
-    } catch (error) {
-      console.error("\u672C\u5730Mock\u670D\u52A1\u5668\u8FDE\u63A5\u5931\u8D25:", error);
-      throw error;
-    }
-  }
-  const omnivore = new import_api.Omnivore({
-    authToken: apiKey,
-    baseUrl: baseUrl(endpoint),
-    timeoutMs: 1e4
-  });
-  const response = await omnivore.items.search({
-    after,
-    first,
-    query: `${updatedAt ? "updated:" + updatedAt : ""} sort:saved-asc ${query}`,
-    includeContent: false,
-    format
-  });
-  const items = response.edges.map((e) => e.node);
-  if (includeContent && items.length > 0) {
-    try {
-      await fetchContentForItems(endpoint, apiKey, items);
-    } catch (error) {
-      console.error("Error fetching content", error);
-    }
-  }
-  return [items, response.pageInfo.hasNextPage];
-};
-var deleteItem = async (endpoint, apiKey, articleId) => {
-  const omnivore = new import_api.Omnivore({
-    authToken: apiKey,
-    baseUrl: baseUrl(endpoint),
-    timeoutMs: 1e4
-  });
-  await omnivore.items.delete({ id: articleId });
-  return true;
-};
-var getArticleCount = async (endpoint, apiKey) => {
-  console.log("\u{1F527} getArticleCount\u8C03\u7528\u53C2\u6570:", { endpoint, apiKey: apiKey ? "***" : "(\u7A7A)" });
-  if (LOCAL_TEST_CONFIG.ENABLE_LOCAL_TEST && (!apiKey || apiKey.trim() === "")) {
-    apiKey = LOCAL_TEST_CONFIG.TEST_API_KEY;
-    console.log("\u{1F527} \u672C\u5730\u6D4B\u8BD5\u6A21\u5F0F\uFF1A\u4F7F\u7528\u9ED8\u8BA4\u6D4B\u8BD5API\u5BC6\u94A5");
-  }
-  try {
-    const apiUrl = endpoint.replace("/api/graphql", "/api/stats/article-count");
-    console.log("\u{1F527} \u8BF7\u6C42URL:", apiUrl);
-    const headers = {
-      "Content-Type": "application/json"
-    };
-    if (apiKey) {
-      headers["Authorization"] = `Bearer ${apiKey}`;
-    }
-    const response = await (0, import_obsidian.requestUrl)({
-      url: apiUrl,
-      method: "GET",
-      headers
-    });
-    console.log("\u{1F527} \u83B7\u53D6\u6587\u7AE0\u6570\u91CF\u54CD\u5E94:", response.json);
-    return response.json.count || 0;
-  } catch (error) {
-    console.error("\u83B7\u53D6\u6587\u7AE0\u6570\u91CF\u5931\u8D25:", error);
-    throw error;
-  }
-};
-var clearAllArticles = async (endpoint, apiKey) => {
-  console.log("\u{1F527} clearAllArticles\u8C03\u7528\u53C2\u6570:", { endpoint, apiKey: apiKey ? "***" : "(\u7A7A)" });
-  if (LOCAL_TEST_CONFIG.ENABLE_LOCAL_TEST && (!apiKey || apiKey.trim() === "")) {
-    apiKey = LOCAL_TEST_CONFIG.TEST_API_KEY;
-    console.log("\u{1F527} \u672C\u5730\u6D4B\u8BD5\u6A21\u5F0F\uFF1A\u4F7F\u7528\u9ED8\u8BA4\u6D4B\u8BD5API\u5BC6\u94A5");
-  }
-  try {
-    const apiUrl = endpoint.replace("/api/graphql", "/api/articles/clear");
-    console.log("\u{1F527} \u8BF7\u6C42URL:", apiUrl);
-    const headers = {
-      "Content-Type": "application/json"
-    };
-    if (apiKey) {
-      headers["Authorization"] = `Bearer ${apiKey}`;
-    }
-    const response = await (0, import_obsidian.requestUrl)({
-      url: apiUrl,
-      method: "DELETE",
-      headers
-    });
-    console.log("\u{1F527} \u6E05\u7A7A\u6587\u7AE0\u54CD\u5E94:", response.json);
-    return response.json;
-  } catch (error) {
-    console.error("\u6E05\u7A7A\u6587\u7AE0\u5931\u8D25:", error);
-    throw error;
-  }
-};
-
-// src/logger.ts
-var isDevelopment2 = BUILD_CONFIG.IS_DEVELOPMENT;
-var _Logger = class {
-  static setDevMode(devMode) {
-    _Logger.isDev = devMode;
-  }
-  static debug(...args) {
-    if (_Logger.isDev) {
-      console.log(...args);
-    }
-  }
-  static info(...args) {
-    if (_Logger.isDev) {
-      console.info(...args);
-    }
-  }
-  static warn(...args) {
-    console.warn(...args);
-  }
-  static error(...args) {
-    console.error(...args);
-  }
-};
-var Logger = _Logger;
-Logger.isDev = isDevelopment2;
-var log = Logger.debug;
-var logInfo = Logger.info;
-var logWarn = Logger.warn;
-var logError = Logger.error;
-
-// src/settings/template.ts
-var import_lodash = __toESM(require_lodash());
-
 // node_modules/mustache/mustache.mjs
 var objectToString = Object.prototype.toString;
 var isArray = Array.isArray || function isArrayPolyfill(object) {
@@ -15857,7 +15474,388 @@ mustache.Context = Context;
 mustache.Writer = Writer;
 var mustache_default = mustache;
 
+// src/main.ts
+var import_obsidian8 = require("obsidian");
+
+// src/api.ts
+var import_api = __toESM(require_src());
+var import_obsidian = require("obsidian");
+
+// src/build-config.ts
+var isLocalTest = false;
+var isDevelopment = false;
+var BUILD_CONFIG = {
+  IS_LOCAL_TEST: isLocalTest,
+  IS_DEVELOPMENT: isDevelopment,
+  LOCAL_API_BASE_URL: "http://localhost:3001",
+  VERSION: "1.10.4-local-test"
+};
+
+// src/settings/local-test.ts
+var LOCAL_TEST_CONFIG = {
+  TEST_API_KEY: "o56E762Lh_yloQuLk1Gfim3Xksxs",
+  LOCAL_API_BASE_URL: "http://localhost:3002",
+  LOCAL_GRAPHQL_ENDPOINT: "http://localhost:3002/api/graphql",
+  LOCAL_CONTENT_ENDPOINT: "http://localhost:3002/api/content",
+  ENABLE_LOCAL_TEST: BUILD_CONFIG.IS_LOCAL_TEST
+};
+var getEndpointUrl = (defaultEndpoint) => {
+  if (LOCAL_TEST_CONFIG.ENABLE_LOCAL_TEST) {
+    console.log("\u{1F527} \u672C\u5730\u6D4B\u8BD5\u6A21\u5F0F\u5DF2\u542F\u7528\uFF0C\u4F7F\u7528Mock\u670D\u52A1\u5668:", LOCAL_TEST_CONFIG.LOCAL_GRAPHQL_ENDPOINT);
+    return LOCAL_TEST_CONFIG.LOCAL_GRAPHQL_ENDPOINT;
+  }
+  return defaultEndpoint;
+};
+var getContentApiUrl = (endpoint) => {
+  if (LOCAL_TEST_CONFIG.ENABLE_LOCAL_TEST) {
+    console.log("\u{1F527} \u672C\u5730\u6D4B\u8BD5\u6A21\u5F0F\uFF1A\u5185\u5BB9API\u91CD\u5B9A\u5411\u5230:", LOCAL_TEST_CONFIG.LOCAL_CONTENT_ENDPOINT);
+    return LOCAL_TEST_CONFIG.LOCAL_CONTENT_ENDPOINT;
+  }
+  return endpoint.replace(/\/api\/graphql$/, "/api/content");
+};
+
+// src/api.ts
+var baseUrl = (endpoint) => endpoint.replace(/\/api\/graphql$/, "");
+var searchCustomServerItems = async (endpoint, after, first, query, apiKey) => {
+  const searchQuery = `
+    query Search($after: Int, $first: Int, $query: String) {
+      search(after: $after, first: $first, query: $query) {
+        items {
+          id
+          title
+          author
+          content
+          originalUrl
+          savedAt
+          updatedAt
+          publishedAt
+          description
+          siteName
+          slug
+          image
+          pageType
+          contentReader
+          wordsCount
+          readingProgressPercent
+          isArchived
+          archivedAt
+          readAt
+          highlights {
+            id
+            type
+            quote
+            prefix
+            suffix
+            patch
+            annotation
+            createdAt
+            updatedAt
+            highlightPositionPercent
+            shortId
+          }
+          labels {
+            id
+            name
+            color
+            user_id
+            created_at
+            updated_at
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+          totalCount
+        }
+      }
+    }`;
+  const variables = {
+    after,
+    first,
+    query
+  };
+  const endpointUrl = endpoint;
+  const headers = {
+    "Content-Type": "application/json"
+  };
+  if (apiKey) {
+    headers["x-api-key"] = apiKey;
+  }
+  const response = await (0, import_obsidian.requestUrl)({
+    url: endpointUrl,
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      query: searchQuery,
+      variables
+    })
+  });
+  return response.json;
+};
+var searchLocalItems = async (endpoint, after, first, query, apiKey) => {
+  const searchQuery = `
+    query Search($after: Int, $first: Int, $query: String) {
+      search(after: $after, first: $first, query: $query) {
+        items {
+          id
+          title
+          author
+          content
+          originalUrl
+          savedAt
+          updatedAt
+          isArchived
+          highlights {
+            id
+            quote
+            note
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+          totalCount
+        }
+      }
+    }
+  `;
+  const headers = {
+    "Content-Type": "application/json"
+  };
+  if (LOCAL_TEST_CONFIG.ENABLE_LOCAL_TEST && apiKey) {
+    headers["Authorization"] = `Bearer ${apiKey}`;
+  }
+  const response = await (0, import_obsidian.requestUrl)({
+    url: endpoint,
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      query: searchQuery,
+      variables: { after, first, query }
+    })
+  });
+  return response.json;
+};
+var getContent = async (endpoint, apiKey, libraryItemIds) => {
+  const response = await (0, import_obsidian.requestUrl)({
+    url: getContentApiUrl(endpoint),
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: apiKey
+    },
+    body: JSON.stringify({ libraryItemIds, format: "highlightedMarkdown" })
+  });
+  return response.json;
+};
+var downloadFromUrl = async (url) => {
+  try {
+    const response = await (0, import_obsidian.requestUrl)({
+      url
+    });
+    return response.text;
+  } catch (error) {
+    if (error.status === 404) {
+      await sleep(1e3);
+      return downloadFromUrl(url);
+    }
+    throw error;
+  }
+};
+var fetchContentForItems = async (endpoint, apiKey, items) => {
+  const content = await getContent(endpoint, apiKey, items.map((a) => a.id));
+  await Promise.allSettled(content.data.map(async (c) => {
+    if (c.error) {
+      console.error("Error fetching content", c.error);
+      return;
+    }
+    const item = items.find((i) => i.id === c.libraryItemId);
+    if (!item) {
+      console.error("Item not found", c.libraryItemId);
+      return;
+    }
+    item.content = await Promise.race([
+      downloadFromUrl(c.downloadUrl),
+      new Promise((_, reject) => setTimeout(() => reject("Timeout"), 6e5))
+    ]);
+  }));
+};
+var getItems = async (endpoint, apiKey, after = 0, first = 10, updatedAt = "", query = "", includeContent = false, format = "html") => {
+  console.log("\u{1F527} getItems\u8C03\u7528\u53C2\u6570:", { endpoint, apiKey, after, first, updatedAt, query });
+  if (LOCAL_TEST_CONFIG.ENABLE_LOCAL_TEST && (!apiKey || apiKey.trim() === "")) {
+    apiKey = LOCAL_TEST_CONFIG.TEST_API_KEY;
+    console.log("\u{1F527} \u672C\u5730\u6D4B\u8BD5\u6A21\u5F0F\uFF1A\u4F7F\u7528\u9ED8\u8BA4\u6D4B\u8BD5API\u5BC6\u94A5");
+  }
+  console.log("\u{1F527} \u68C0\u67E5endpoint:", endpoint);
+  console.log("\u{1F527} \u662F\u5426\u5305\u542Bobsidian.notebooksyncer.com:", endpoint.includes("obsidian.notebooksyncer.com"));
+  if (endpoint.includes("obsidian.notebooksyncer.com")) {
+    console.log("\u{1F527} \u4F7F\u7528\u81EA\u5B9A\u4E49\u670D\u52A1\u5668\u83B7\u53D6\u6570\u636E");
+    try {
+      const searchQuery = `${updatedAt ? "updated:" + updatedAt : ""} sort:saved-asc ${query}`.trim();
+      const response2 = await searchCustomServerItems(endpoint, after, first, searchQuery, apiKey);
+      console.log("\u{1F527} \u81EA\u5B9A\u4E49\u670D\u52A1\u5668\u54CD\u5E94:", response2);
+      console.log("\u{1F527} response.edges:", response2.edges);
+      console.log("\u{1F527} response.pageInfo:", response2.pageInfo);
+      if (!response2.edges) {
+        console.error("\u{1F527} response.edges is undefined, full response:", JSON.stringify(response2, null, 2));
+        throw new Error("\u670D\u52A1\u5668\u54CD\u5E94\u683C\u5F0F\u9519\u8BEF\uFF1A\u7F3A\u5C11edges\u5B57\u6BB5");
+      }
+      const items2 = response2.edges.map((e) => e.node);
+      const hasNextPage = response2.pageInfo.hasNextPage;
+      console.log(`\u{1F527} \u81EA\u5B9A\u4E49\u670D\u52A1\u5668\u83B7\u53D6\u5230 ${items2.length} \u7BC7\u6587\u7AE0`);
+      console.log(`\u{1F527} includeContent: ${includeContent}`);
+      if (includeContent && items2.length > 0) {
+        console.log("\u{1F527} \u81EA\u5B9A\u4E49\u670D\u52A1\u5668\u8DF3\u8FC7\u5185\u5BB9\u83B7\u53D6\uFF08\u5185\u5BB9\u5DF2\u5728GraphQL\u54CD\u5E94\u4E2D\uFF09");
+      }
+      console.log("\u{1F527} \u51C6\u5907\u8FD4\u56DE\u6570\u636E");
+      return [items2, hasNextPage];
+    } catch (error) {
+      console.error("\u81EA\u5B9A\u4E49\u670D\u52A1\u5668\u8FDE\u63A5\u5931\u8D25:", error);
+      throw error;
+    }
+  }
+  if (LOCAL_TEST_CONFIG.ENABLE_LOCAL_TEST) {
+    console.log("\u{1F527} \u4F7F\u7528\u672C\u5730Mock\u670D\u52A1\u5668\u83B7\u53D6\u6570\u636E");
+    try {
+      const searchQuery = `${updatedAt ? "updated:" + updatedAt : ""} sort:saved-asc ${query}`.trim();
+      const response2 = await searchLocalItems(endpoint, after, first, searchQuery, apiKey);
+      const items2 = response2.data.search.items;
+      const hasNextPage = response2.data.search.pageInfo.hasNextPage;
+      if (includeContent && items2.length > 0) {
+        try {
+          await fetchContentForItems(endpoint, apiKey, items2);
+        } catch (error) {
+          console.error("Error fetching content from local server", error);
+        }
+      }
+      return [items2, hasNextPage];
+    } catch (error) {
+      console.error("\u672C\u5730Mock\u670D\u52A1\u5668\u8FDE\u63A5\u5931\u8D25:", error);
+      throw error;
+    }
+  }
+  const omnivore = new import_api.Omnivore({
+    authToken: apiKey,
+    baseUrl: baseUrl(endpoint),
+    timeoutMs: 1e4
+  });
+  const response = await omnivore.items.search({
+    after,
+    first,
+    query: `${updatedAt ? "updated:" + updatedAt : ""} sort:saved-asc ${query}`,
+    includeContent: false,
+    format
+  });
+  const items = response.edges.map((e) => e.node);
+  if (includeContent && items.length > 0) {
+    try {
+      await fetchContentForItems(endpoint, apiKey, items);
+    } catch (error) {
+      console.error("Error fetching content", error);
+    }
+  }
+  return [items, response.pageInfo.hasNextPage];
+};
+var deleteItem = async (endpoint, apiKey, articleId) => {
+  const omnivore = new import_api.Omnivore({
+    authToken: apiKey,
+    baseUrl: baseUrl(endpoint),
+    timeoutMs: 1e4
+  });
+  await omnivore.items.delete({ id: articleId });
+  return true;
+};
+var getArticleCount = async (endpoint, apiKey) => {
+  console.log("\u{1F527} getArticleCount\u8C03\u7528\u53C2\u6570:", { endpoint, apiKey: apiKey ? "***" : "(\u7A7A)" });
+  if (LOCAL_TEST_CONFIG.ENABLE_LOCAL_TEST && (!apiKey || apiKey.trim() === "")) {
+    apiKey = LOCAL_TEST_CONFIG.TEST_API_KEY;
+    console.log("\u{1F527} \u672C\u5730\u6D4B\u8BD5\u6A21\u5F0F\uFF1A\u4F7F\u7528\u9ED8\u8BA4\u6D4B\u8BD5API\u5BC6\u94A5");
+  }
+  try {
+    const apiUrl = endpoint.replace("/api/graphql", "/api/stats/article-count");
+    console.log("\u{1F527} \u8BF7\u6C42URL:", apiUrl);
+    const headers = {
+      "Content-Type": "application/json"
+    };
+    if (apiKey) {
+      headers["Authorization"] = `Bearer ${apiKey}`;
+    }
+    const response = await (0, import_obsidian.requestUrl)({
+      url: apiUrl,
+      method: "GET",
+      headers
+    });
+    console.log("\u{1F527} \u83B7\u53D6\u6587\u7AE0\u6570\u91CF\u54CD\u5E94:", response.json);
+    return response.json.count || 0;
+  } catch (error) {
+    console.error("\u83B7\u53D6\u6587\u7AE0\u6570\u91CF\u5931\u8D25:", error);
+    throw error;
+  }
+};
+var clearAllArticles = async (endpoint, apiKey) => {
+  console.log("\u{1F527} clearAllArticles\u8C03\u7528\u53C2\u6570:", { endpoint, apiKey: apiKey ? "***" : "(\u7A7A)" });
+  if (LOCAL_TEST_CONFIG.ENABLE_LOCAL_TEST && (!apiKey || apiKey.trim() === "")) {
+    apiKey = LOCAL_TEST_CONFIG.TEST_API_KEY;
+    console.log("\u{1F527} \u672C\u5730\u6D4B\u8BD5\u6A21\u5F0F\uFF1A\u4F7F\u7528\u9ED8\u8BA4\u6D4B\u8BD5API\u5BC6\u94A5");
+  }
+  try {
+    const apiUrl = endpoint.replace("/api/graphql", "/api/articles/clear");
+    console.log("\u{1F527} \u8BF7\u6C42URL:", apiUrl);
+    const headers = {
+      "Content-Type": "application/json"
+    };
+    if (apiKey) {
+      headers["Authorization"] = `Bearer ${apiKey}`;
+    }
+    const response = await (0, import_obsidian.requestUrl)({
+      url: apiUrl,
+      method: "DELETE",
+      headers
+    });
+    console.log("\u{1F527} \u6E05\u7A7A\u6587\u7AE0\u54CD\u5E94:", response.json);
+    return response.json;
+  } catch (error) {
+    console.error("\u6E05\u7A7A\u6587\u7AE0\u5931\u8D25:", error);
+    throw error;
+  }
+};
+
+// src/logger.ts
+var isDevelopment2 = BUILD_CONFIG.IS_DEVELOPMENT;
+var _Logger = class {
+  static setDevMode(devMode) {
+    _Logger.isDev = devMode;
+  }
+  static debug(...args) {
+    if (_Logger.isDev) {
+      console.log(...args);
+    }
+  }
+  static info(...args) {
+    if (_Logger.isDev) {
+      console.info(...args);
+    }
+  }
+  static warn(...args) {
+    console.warn(...args);
+  }
+  static error(...args) {
+    console.error(...args);
+  }
+};
+var Logger = _Logger;
+Logger.isDev = isDevelopment2;
+var log = Logger.debug;
+var logInfo = Logger.info;
+var logWarn = Logger.warn;
+var logError = Logger.error;
+
 // src/settings/template.ts
+var import_lodash = __toESM(require_lodash());
 var import_obsidian3 = require("obsidian");
 
 // src/util.ts
@@ -16859,7 +16857,7 @@ var renderLabels = (labels) => {
     name: l2.name.replaceAll(" ", "_")
   }));
 };
-var renderItemContent = async (item, template, highlightOrder, highlightManagerId, dateHighlightedFormat, dateSavedFormat, isSingleFile, frontMatterVariables, frontMatterTemplate, fileAttachment) => {
+var renderItemContent = async (item, template, highlightOrder, highlightManagerId, dateHighlightedFormat, dateSavedFormat, isSingleFile, frontMatterVariables, frontMatterTemplate, sectionSeparator, sectionSeparatorEnd, fileAttachment) => {
   const itemHighlights = item.highlights?.filter((h) => h.type === "HIGHLIGHT") || [];
   if (highlightOrder === "LOCATION") {
     itemHighlights.sort((a, b) => {
@@ -16963,11 +16961,13 @@ var renderItemContent = async (item, template, highlightOrder, highlightManagerI
   let contentWithoutFrontMatter = removeFrontMatterFromContent(content);
   let frontMatterYaml = (0, import_obsidian3.stringifyYaml)(frontMatter);
   if (isSingleFile) {
-    const sectionStart = `%%${item.id}_start%%`;
-    const sectionEnd = `%%${item.id}_end%%`;
-    contentWithoutFrontMatter = `${sectionStart}
+    if (sectionSeparator && sectionSeparatorEnd) {
+      const renderedStart = mustache_default.render(sectionSeparator, articleView);
+      const renderedEnd = mustache_default.render(sectionSeparatorEnd, articleView);
+      contentWithoutFrontMatter = `${renderedStart}
 ${contentWithoutFrontMatter}
-${sectionEnd}`;
+${renderedEnd}`;
+    }
     frontMatterYaml = (0, import_obsidian3.stringifyYaml)([frontMatter]);
   }
   const frontMatterStr = `---
@@ -17043,7 +17043,7 @@ var DEFAULT_SETTINGS = {
   filenameDateFormat: "yyyy-MM-dd",
   attachmentFolder: "\u7B14\u8BB0\u540C\u6B65\u52A9\u624B/attachments",
   version: "0.0.0",
-  isSingleFile: false,
+  isSingleFile: true,
   frequency: 0,
   intervalId: 0,
   frontMatterVariables: [],
@@ -17056,7 +17056,10 @@ var DEFAULT_SETTINGS = {
     ["red" /* Red */]: "#ff5582",
     ["blue" /* Blue */]: "#adccff",
     ["green" /* Green */]: "#bbfabb"
-  }
+  },
+  singleFileName: "\u540C\u6B65\u52A9\u624B_{{{date}}}",
+  sectionSeparator: "%%{{{dateSaved}}}_start%%",
+  sectionSeparatorEnd: "%%{{{dateSaved}}}_end%%"
 };
 
 // src/settingsTab.ts
@@ -18743,10 +18746,31 @@ var OmnivoreSettingTab = class extends import_obsidian6.PluginSettingTab {
       this.plugin.settings.syncAt = value;
       await this.plugin.saveSettings();
     }));
-    new import_obsidian6.Setting(containerEl).setName("\u5355\u6587\u4EF6\u6A21\u5F0F / Is Single File").setDesc("\u52FE\u9009\u6B64\u9009\u9879\u5C06\u6240\u6709\u6587\u7AE0\u4FDD\u5B58\u5728\u5355\u4E2A\u6587\u4EF6\u4E2D / Check this box if you want to save all articles in a single file").addToggle((toggle) => toggle.setValue(this.plugin.settings.isSingleFile).onChange(async (value) => {
+    new import_obsidian6.Setting(containerEl).setName("\u5355\u6587\u4EF6\u6A21\u5F0F / Is Single File").setDesc("\u52FE\u9009\u6B64\u9009\u9879\u5C06\u5F53\u5929\u6240\u6709\u6587\u672C\u6D88\u606F\u3001\u56FE\u7247\u3001\u804A\u5929\u8BB0\u5F55\u4FDD\u5B58\u5728\u4E00\u4E2A\u6587\u4EF6\u4E2D / Check this box to save all text messages, images, and chat records from the same day in a single file").addToggle((toggle) => toggle.setValue(this.plugin.settings.isSingleFile).onChange(async (value) => {
       this.plugin.settings.isSingleFile = value;
       await this.plugin.saveSettings();
+      this.display();
     }));
+    if (this.plugin.settings.isSingleFile) {
+      new import_obsidian6.Setting(containerEl).setName("\u5355\u6587\u4EF6\u540D\u79F0\u6A21\u677F / Single File Name Template").setDesc(createFragment((fragment) => {
+        fragment.append("\u8BBE\u7F6E\u5408\u5E76\u6587\u4EF6\u7684\u540D\u79F0\u6A21\u677F\u3002\u53EF\u7528\u53D8\u91CF\uFF1A{{{date}}} = \u65E5\u671F / Set the name template for merged files. Available variables: {{{date}}} = date", fragment.createEl("br"), fragment.createEl("br"), "\u793A\u4F8B / Examples:", fragment.createEl("br"), "\u2022 \u540C\u6B65\u52A9\u624B_{{{date}}} \u2192 \u540C\u6B65\u52A9\u624B_2025-01-21", fragment.createEl("br"), "\u2022 \u4F01\u5FAE\u6D88\u606F_{{{date}}} \u2192 \u4F01\u5FAE\u6D88\u606F_2025-01-21", fragment.createEl("br"), fragment.createEl("br"), '\u65E5\u671F\u683C\u5F0F\u4F7F\u7528\u4E0B\u65B9\u7684"\u6587\u4EF6\u540D\u65E5\u671F\u683C\u5F0F"\u8BBE\u7F6E / Date format uses the "Filename Date Format" setting below');
+      })).addText((text) => text.setPlaceholder("\u540C\u6B65\u52A9\u624B_{{{date}}}").setValue(this.plugin.settings.singleFileName).onChange(async (value) => {
+        this.plugin.settings.singleFileName = value || "\u540C\u6B65\u52A9\u624B_{{{date}}}";
+        await this.plugin.saveSettings();
+      }));
+      new import_obsidian6.Setting(containerEl).setName("\u6D88\u606F\u5206\u9694\u7B26\uFF08\u8D77\u59CB\uFF09/ Section Separator (Start)").setDesc(createFragment((fragment) => {
+        fragment.append("\u8BBE\u7F6E\u5355\u6587\u4EF6\u6A21\u5F0F\u4E2D\u6D88\u606F\u8D77\u59CB\u5206\u9694\u7B26\u3002\u7559\u7A7A\u8868\u793A\u4E0D\u4F7F\u7528\u5206\u9694\u7B26\u3002\u53EF\u7528\u53D8\u91CF\uFF1A{{{dateSaved}}} = \u4FDD\u5B58\u65F6\u95F4, {{{title}}} = \u6807\u9898, {{{id}}} = ID / Set the start separator for single file mode. Leave empty for no separator. Available variables: {{{dateSaved}}} = saved date, {{{title}}} = title, {{{id}}} = ID", fragment.createEl("br"), fragment.createEl("br"), "\u793A\u4F8B / Examples:", fragment.createEl("br"), "\u2022 %%{{{dateSaved}}}_start%% \u2192 \u4F7F\u7528%%\u4F5C\u4E3A\u6CE8\u91CA\u6807\u8BB0", fragment.createEl("br"), "\u2022 ---{{{dateSaved}}}--- \u2192 \u4F7F\u7528---\u4F5C\u4E3A\u5206\u9694\u7EBF", fragment.createEl("br"), "\u2022 ## {{{title}}} \u2192 \u4F7F\u7528\u6807\u9898\u4F5C\u4E3A\u5206\u9694", fragment.createEl("br"), "\u2022 \u7A7A\u767D \u2192 \u4E0D\u4F7F\u7528\u5206\u9694\u7B26");
+      })).addText((text) => text.setPlaceholder("%%{{{dateSaved}}}_start%%").setValue(this.plugin.settings.sectionSeparator).onChange(async (value) => {
+        this.plugin.settings.sectionSeparator = value;
+        await this.plugin.saveSettings();
+      }));
+      new import_obsidian6.Setting(containerEl).setName("\u6D88\u606F\u5206\u9694\u7B26\uFF08\u7ED3\u675F\uFF09/ Section Separator (End)").setDesc(createFragment((fragment) => {
+        fragment.append("\u8BBE\u7F6E\u5355\u6587\u4EF6\u6A21\u5F0F\u4E2D\u6D88\u606F\u7ED3\u675F\u5206\u9694\u7B26\u3002\u9700\u4E0E\u8D77\u59CB\u5206\u9694\u7B26\u914D\u5957\u4F7F\u7528 / Set the end separator for single file mode. Must be used with start separator", fragment.createEl("br"), fragment.createEl("br"), "\u793A\u4F8B / Examples:", fragment.createEl("br"), "\u2022 %%{{{dateSaved}}}_end%% \u2192 \u4E0E\u8D77\u59CB\u5206\u9694\u7B26\u5BF9\u5E94\u7684\u7ED3\u675F\u6807\u8BB0", fragment.createEl("br"), "\u2022 ---{{{dateSaved}}}--- \u2192 \u4F7F\u7528\u76F8\u540C\u7684\u5206\u9694\u7EBF", fragment.createEl("br"), "\u2022 \u7A7A\u767D \u2192 \u5982\u679C\u8D77\u59CB\u4E5F\u4E3A\u7A7A\uFF0C\u8868\u793A\u4E0D\u4F7F\u7528\u5206\u9694\u7B26");
+      })).addText((text) => text.setPlaceholder("%%{{{dateSaved}}}_end%%").setValue(this.plugin.settings.sectionSeparatorEnd).onChange(async (value) => {
+        this.plugin.settings.sectionSeparatorEnd = value;
+        await this.plugin.saveSettings();
+      }));
+    }
     new import_obsidian6.Setting(containerEl).setName("\u6587\u4EF6\u5939 / Folder").setDesc("\u8F93\u5165\u6570\u636E\u5B58\u50A8\u7684\u6587\u4EF6\u5939\u8DEF\u5F84\u3002\u53EF\u5728\u6587\u4EF6\u5939\u540D\u79F0\u4E2D\u4F7F\u7528 {{{title}}}\u3001{{{dateSaved}}} / Enter the folder where the data will be stored. {{{title}}}, {{{dateSaved}}} could be used in the folder name").addSearch((search) => {
       new FolderSuggest(this.app, search.inputEl);
       search.setPlaceholder("Enter the folder").setValue(this.plugin.settings.folder).onChange(async (value) => {
@@ -18785,10 +18809,7 @@ var OmnivoreSettingTab = class extends import_obsidian6.PluginSettingTab {
     }));
     containerEl.createEl("h3", { text: "\u6587\u7AE0 / Article" });
     new import_obsidian6.Setting(containerEl).setName("\u524D\u7F6E\u5143\u6570\u636E / Front Matter").setDesc(createFragment((fragment) => {
-      fragment.append("\u8F93\u5165\u7528\u4E8E\u7B14\u8BB0\u7684\u5143\u6570\u636E\uFF0C\u7528\u9017\u53F7\u5206\u9694\u3002\u60A8\u4E5F\u53EF\u4EE5\u4F7F\u7528\u81EA\u5B9A\u4E49\u522B\u540D\uFF0C\u683C\u5F0F\u4E3A metatdata::alias\uFF0C\u4F8B\u5982 date_saved::date\u3002 / Enter the metadata to be used in your note separated by commas. You can also use custom aliases in the format of metatdata::alias, e.g. date_saved::date. ", fragment.createEl("br"), fragment.createEl("br"), "\u53EF\u7528\u5143\u6570\u636E\u53C2\u8003 / Available metadata can be found at ", fragment.createEl("a", {
-        text: "Reference",
-        href: "https://docs.omnivore.app/integrations/obsidian.html#front-matter"
-      }), fragment.createEl("br"), fragment.createEl("br"), "\u5982\u679C\u8981\u4F7F\u7528\u81EA\u5B9A\u4E49\u524D\u7F6E\u5143\u6570\u636E\u6A21\u677F\uFF0C\u53EF\u5728\u4E0B\u65B9\u7684\u9AD8\u7EA7\u8BBE\u7F6E\u4E2D\u8F93\u5165 / If you want to use a custom front matter template, you can enter it below under the advanced settings");
+      fragment.append("\u8F93\u5165\u7528\u4E8E\u7B14\u8BB0\u7684\u5143\u6570\u636E\uFF0C\u7528\u9017\u53F7\u5206\u9694\u3002\u60A8\u4E5F\u53EF\u4EE5\u4F7F\u7528\u81EA\u5B9A\u4E49\u522B\u540D\uFF0C\u683C\u5F0F\u4E3A metatdata::alias\uFF0C\u4F8B\u5982 date_saved::date\u3002 / Enter the metadata to be used in your note separated by commas. You can also use custom aliases in the format of metatdata::alias, e.g. date_saved::date. ", fragment.createEl("br"), fragment.createEl("br"), "\u5982\u679C\u8981\u4F7F\u7528\u81EA\u5B9A\u4E49\u524D\u7F6E\u5143\u6570\u636E\u6A21\u677F\uFF0C\u53EF\u5728\u4E0B\u65B9\u7684\u9AD8\u7EA7\u8BBE\u7F6E\u4E2D\u8F93\u5165 / If you want to use a custom front matter template, you can enter it below under the advanced settings");
     })).addTextArea((text) => {
       text.setPlaceholder("Enter the metadata").setValue(this.plugin.settings.frontMatterVariables.join(",")).onChange(async (value) => {
         this.plugin.settings.frontMatterVariables = value.split(",").map((v) => v.trim()).filter((v, i2, a) => FRONT_MATTER_VARIABLES.includes(v.split("::")[0]) && a.indexOf(v) === i2);
@@ -19432,7 +19453,8 @@ var OmnivorePlugin = class extends import_obsidian8.Plugin {
       filename,
       isSingleFile,
       frontMatterVariables,
-      frontMatterTemplate
+      frontMatterTemplate,
+      singleFileName
     } = this.settings;
     if (syncing) {
       new import_obsidian8.Notice("\u{1F422} \u6B63\u5728\u540C\u6B65\u4E2D...");
@@ -19465,7 +19487,26 @@ var OmnivorePlugin = class extends import_obsidian8.Plugin {
         log(`\u{1F527} \u51C6\u5907\u5F00\u59CB\u5904\u7406\u6587\u7AE0`);
         for (const item of items) {
           log(`\u{1F527} \u5F00\u59CB\u5904\u7406\u6587\u7AE0: ${item.title}`);
-          const folderName = replaceIllegalCharsFolder((0, import_obsidian8.normalizePath)(render3(item, folder, this.settings.folderDateFormat)));
+          let folderName;
+          if (isSingleFile && item.title.startsWith("\u540C\u6B65\u52A9\u624B_")) {
+            const titleParts = item.title.split("_");
+            if (titleParts.length >= 2 && titleParts[1].length === 8) {
+              const dateStr = titleParts[1];
+              const year = dateStr.substring(0, 4);
+              const month = dateStr.substring(4, 6);
+              const day = dateStr.substring(6, 8);
+              const extractedDate = `${year}-${month}-${day}`;
+              const tempItem = {
+                ...item,
+                savedAt: extractedDate
+              };
+              folderName = replaceIllegalCharsFolder((0, import_obsidian8.normalizePath)(render3(tempItem, folder, this.settings.folderDateFormat)));
+            } else {
+              folderName = replaceIllegalCharsFolder((0, import_obsidian8.normalizePath)(render3(item, folder, this.settings.folderDateFormat)));
+            }
+          } else {
+            folderName = replaceIllegalCharsFolder((0, import_obsidian8.normalizePath)(render3(item, folder, this.settings.folderDateFormat)));
+          }
           log(`\u{1F527} \u6587\u4EF6\u5939\u540D\u79F0: ${folderName}`);
           const omnivoreFolder = this.app.vault.getAbstractFileByPath(folderName);
           if (!(omnivoreFolder instanceof import_obsidian8.TFolder)) {
@@ -19489,9 +19530,28 @@ var OmnivorePlugin = class extends import_obsidian8.Plugin {
           const fileAttachment = item.pageType === "FILE" && includeFileAttachment ? await this.downloadFileAsAttachment(item) : void 0;
           log(`\u{1F527} \u6587\u4EF6\u9644\u4EF6\u5904\u7406\u5B8C\u6210`);
           log(`\u{1F527} \u5F00\u59CB\u6E32\u67D3\u5185\u5BB9`);
-          const content = await renderItemContent(item, template, highlightOrder, this.settings.enableHighlightColorRender ? this.settings.highlightManagerId : void 0, this.settings.dateHighlightedFormat, this.settings.dateSavedFormat, isSingleFile, frontMatterVariables, frontMatterTemplate, fileAttachment);
+          const content = await renderItemContent(item, template, highlightOrder, this.settings.enableHighlightColorRender ? this.settings.highlightManagerId : void 0, this.settings.dateHighlightedFormat, this.settings.dateSavedFormat, isSingleFile, frontMatterVariables, frontMatterTemplate, this.settings.sectionSeparator, this.settings.sectionSeparatorEnd, fileAttachment);
           log(`\u{1F527} \u5185\u5BB9\u6E32\u67D3\u5B8C\u6210`);
-          const customFilename = replaceIllegalCharsFile(renderFilename(item, filename, this.settings.filenameDateFormat));
+          let customFilename = replaceIllegalCharsFile(renderFilename(item, filename, this.settings.filenameDateFormat));
+          if (isSingleFile && item.title.startsWith("\u540C\u6B65\u52A9\u624B_")) {
+            const titleParts = item.title.split("_");
+            if (titleParts.length >= 2) {
+              const dateStr = titleParts[1];
+              if (dateStr.length === 8) {
+                const year = dateStr.substring(0, 4);
+                const month = dateStr.substring(4, 6);
+                const day = dateStr.substring(6, 8);
+                const formattedDate = `${year}-${month}-${day}`;
+                const singleFileTemplate = singleFileName || "\u540C\u6B65\u52A9\u624B_{{{date}}}";
+                const tempItem = {
+                  ...item,
+                  savedAt: formattedDate
+                };
+                customFilename = replaceIllegalCharsFile(renderFilename(tempItem, singleFileTemplate, this.settings.filenameDateFormat));
+                log(`\u{1F527} \u4F01\u5FAE\u6D88\u606F\u4F7F\u7528\u5355\u6587\u4EF6\u6A21\u677F: ${customFilename}`);
+              }
+            }
+          }
           const pageName = `${folderName}/${customFilename}.md`;
           const normalizedPath = (0, import_obsidian8.normalizePath)(pageName);
           log(`\u{1F527} \u51C6\u5907\u521B\u5EFA/\u66F4\u65B0\u6587\u4EF6: ${normalizedPath}`);
@@ -19512,10 +19572,23 @@ var OmnivorePlugin = class extends import_obsidian8.Plugin {
               let newContentWithoutFrontMatter;
               const frontMatterIdx = findFrontMatterIndex(existingFrontMatter, item.id);
               if (frontMatterIdx >= 0) {
-                const sectionStart = `%%${item.id}_start%%`;
-                const sectionEnd = `%%${item.id}_end%%`;
-                const existingContentRegex = new RegExp(`${sectionStart}.*?${sectionEnd}`, "s");
-                newContentWithoutFrontMatter = existingContentWithoutFrontmatter.replace(existingContentRegex, contentWithoutFrontmatter);
+                if (this.settings.sectionSeparator && this.settings.sectionSeparatorEnd) {
+                  const dateSaved = formatDate(item.savedAt, this.settings.dateSavedFormat);
+                  const articleView = {
+                    id: item.id,
+                    title: item.title,
+                    dateSaved
+                  };
+                  const renderedStart = mustache_default.render(this.settings.sectionSeparator, articleView);
+                  const renderedEnd = mustache_default.render(this.settings.sectionSeparatorEnd, articleView);
+                  const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+                  const existingContentRegex = new RegExp(`${escapeRegex(renderedStart)}.*?${escapeRegex(renderedEnd)}`, "s");
+                  newContentWithoutFrontMatter = existingContentWithoutFrontmatter.replace(existingContentRegex, contentWithoutFrontmatter);
+                } else {
+                  newContentWithoutFrontMatter = `${contentWithoutFrontmatter}
+
+${existingContentWithoutFrontmatter}`;
+                }
                 existingFrontMatter[frontMatterIdx] = newFrontMatter[0];
               } else {
                 newContentWithoutFrontMatter = `${contentWithoutFrontmatter}
