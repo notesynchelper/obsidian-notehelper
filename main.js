@@ -16857,7 +16857,24 @@ var renderLabels = (labels) => {
     name: l2.name.replaceAll(" ", "_")
   }));
 };
-var renderItemContent = async (item, template, highlightOrder, highlightManagerId, dateHighlightedFormat, dateSavedFormat, isSingleFile, frontMatterVariables, frontMatterTemplate, sectionSeparator, sectionSeparatorEnd, fileAttachment) => {
+var renderItemContent = async (item, template, highlightOrder, highlightManagerId, dateHighlightedFormat, dateSavedFormat, isSingleFile, frontMatterVariables, frontMatterTemplate, sectionSeparator, sectionSeparatorEnd, fileAttachment, wechatMessageTemplate) => {
+  if (isSingleFile && isWeChatMessage(item)) {
+    const dateSaved2 = formatDate(item.savedAt, dateSavedFormat);
+    const simpleContent = wechatMessageTemplate ? renderWeChatMessageSimple(item, dateSavedFormat, wechatMessageTemplate) : `\u{1F4C5} ${dateSaved2}
+
+${item.content || ""}`;
+    const frontMatter2 = {
+      id: item.id
+    };
+    const frontMatterYaml2 = (0, import_obsidian3.stringifyYaml)({
+      messages: [frontMatter2]
+    });
+    const frontMatterStr2 = `---
+${frontMatterYaml2}---`;
+    return `${frontMatterStr2}
+
+${simpleContent}`;
+  }
   const itemHighlights = item.highlights?.filter((h) => h.type === "HIGHLIGHT") || [];
   if (highlightOrder === "LOCATION") {
     itemHighlights.sort((a, b) => {
@@ -16968,7 +16985,9 @@ var renderItemContent = async (item, template, highlightOrder, highlightManagerI
 ${contentWithoutFrontMatter}
 ${renderedEnd}`;
     }
-    frontMatterYaml = (0, import_obsidian3.stringifyYaml)([frontMatter]);
+    frontMatterYaml = (0, import_obsidian3.stringifyYaml)({
+      messages: [frontMatter]
+    });
   }
   const frontMatterStr = `---
 ${frontMatterYaml}---`;
@@ -17000,6 +17019,27 @@ var render3 = (item, template, dateFormat) => {
 };
 var preParseTemplate = (template) => {
   return mustache_default.parse(template);
+};
+var isWeChatMessage = (item) => {
+  return item.title.startsWith("\u540C\u6B65\u52A9\u624B_");
+};
+var processContentTimestamps = (content) => {
+  let processed = content.replace(/\*\*(\d{4}\/\d{2}\/\d{2}\s+\d{2}:\d{2}:\d{2})\*\*/g, '<small style="color: #999;">$1</small>');
+  processed = processed.replace(/\n{3,}/g, "\n\n");
+  processed = processed.replace(/(<small style="color: #999;">.*?<\/small>)\n\n/g, "$1\n");
+  return processed;
+};
+var renderWeChatMessageSimple = (item, dateSavedFormat, wechatMessageTemplate) => {
+  const dateSaved = formatDate(item.savedAt, dateSavedFormat);
+  const processedContent = item.content ? processContentTimestamps(item.content) : "";
+  const articleView = {
+    id: item.id,
+    title: item.title,
+    content: processedContent,
+    dateSaved,
+    savedAt: item.savedAt
+  };
+  return mustache_default.render(wechatMessageTemplate, articleView);
 };
 
 // src/settings/index.ts
@@ -17059,7 +17099,8 @@ var DEFAULT_SETTINGS = {
   },
   singleFileName: "\u540C\u6B65\u52A9\u624B_{{{date}}}",
   sectionSeparator: "%%{{{dateSaved}}}_start%%",
-  sectionSeparatorEnd: "%%{{{dateSaved}}}_end%%"
+  sectionSeparatorEnd: "%%{{{dateSaved}}}_end%%",
+  wechatMessageTemplate: "---\n## \u{1F4C5} {{{dateSaved}}}\n{{{content}}}"
 };
 
 // src/settingsTab.ts
@@ -18758,18 +18799,6 @@ var OmnivoreSettingTab = class extends import_obsidian6.PluginSettingTab {
         this.plugin.settings.singleFileName = value || "\u540C\u6B65\u52A9\u624B_{{{date}}}";
         await this.plugin.saveSettings();
       }));
-      new import_obsidian6.Setting(containerEl).setName("\u6D88\u606F\u5206\u9694\u7B26\uFF08\u8D77\u59CB\uFF09/ Section Separator (Start)").setDesc(createFragment((fragment) => {
-        fragment.append("\u8BBE\u7F6E\u5355\u6587\u4EF6\u6A21\u5F0F\u4E2D\u6D88\u606F\u8D77\u59CB\u5206\u9694\u7B26\u3002\u7559\u7A7A\u8868\u793A\u4E0D\u4F7F\u7528\u5206\u9694\u7B26\u3002\u53EF\u7528\u53D8\u91CF\uFF1A{{{dateSaved}}} = \u4FDD\u5B58\u65F6\u95F4, {{{title}}} = \u6807\u9898, {{{id}}} = ID / Set the start separator for single file mode. Leave empty for no separator. Available variables: {{{dateSaved}}} = saved date, {{{title}}} = title, {{{id}}} = ID", fragment.createEl("br"), fragment.createEl("br"), "\u793A\u4F8B / Examples:", fragment.createEl("br"), "\u2022 %%{{{dateSaved}}}_start%% \u2192 \u4F7F\u7528%%\u4F5C\u4E3A\u6CE8\u91CA\u6807\u8BB0", fragment.createEl("br"), "\u2022 ---{{{dateSaved}}}--- \u2192 \u4F7F\u7528---\u4F5C\u4E3A\u5206\u9694\u7EBF", fragment.createEl("br"), "\u2022 ## {{{title}}} \u2192 \u4F7F\u7528\u6807\u9898\u4F5C\u4E3A\u5206\u9694", fragment.createEl("br"), "\u2022 \u7A7A\u767D \u2192 \u4E0D\u4F7F\u7528\u5206\u9694\u7B26");
-      })).addText((text) => text.setPlaceholder("%%{{{dateSaved}}}_start%%").setValue(this.plugin.settings.sectionSeparator).onChange(async (value) => {
-        this.plugin.settings.sectionSeparator = value;
-        await this.plugin.saveSettings();
-      }));
-      new import_obsidian6.Setting(containerEl).setName("\u6D88\u606F\u5206\u9694\u7B26\uFF08\u7ED3\u675F\uFF09/ Section Separator (End)").setDesc(createFragment((fragment) => {
-        fragment.append("\u8BBE\u7F6E\u5355\u6587\u4EF6\u6A21\u5F0F\u4E2D\u6D88\u606F\u7ED3\u675F\u5206\u9694\u7B26\u3002\u9700\u4E0E\u8D77\u59CB\u5206\u9694\u7B26\u914D\u5957\u4F7F\u7528 / Set the end separator for single file mode. Must be used with start separator", fragment.createEl("br"), fragment.createEl("br"), "\u793A\u4F8B / Examples:", fragment.createEl("br"), "\u2022 %%{{{dateSaved}}}_end%% \u2192 \u4E0E\u8D77\u59CB\u5206\u9694\u7B26\u5BF9\u5E94\u7684\u7ED3\u675F\u6807\u8BB0", fragment.createEl("br"), "\u2022 ---{{{dateSaved}}}--- \u2192 \u4F7F\u7528\u76F8\u540C\u7684\u5206\u9694\u7EBF", fragment.createEl("br"), "\u2022 \u7A7A\u767D \u2192 \u5982\u679C\u8D77\u59CB\u4E5F\u4E3A\u7A7A\uFF0C\u8868\u793A\u4E0D\u4F7F\u7528\u5206\u9694\u7B26");
-      })).addText((text) => text.setPlaceholder("%%{{{dateSaved}}}_end%%").setValue(this.plugin.settings.sectionSeparatorEnd).onChange(async (value) => {
-        this.plugin.settings.sectionSeparatorEnd = value;
-        await this.plugin.saveSettings();
-      }));
     }
     new import_obsidian6.Setting(containerEl).setName("\u6587\u4EF6\u5939 / Folder").setDesc("\u8F93\u5165\u6570\u636E\u5B58\u50A8\u7684\u6587\u4EF6\u5939\u8DEF\u5F84\u3002\u53EF\u5728\u6587\u4EF6\u5939\u540D\u79F0\u4E2D\u4F7F\u7528 {{{title}}}\u3001{{{dateSaved}}} / Enter the folder where the data will be stored. {{{title}}}, {{{dateSaved}}} could be used in the folder name").addSearch((search) => {
       new FolderSuggest(this.app, search.inputEl);
@@ -18845,6 +18874,23 @@ var OmnivoreSettingTab = class extends import_obsidian6.PluginSettingTab {
     });
     const advancedSettings = containerEl.createEl("div", {
       cls: "omnivore-content"
+    });
+    new import_obsidian6.Setting(advancedSettings).setName("\u52A9\u624B\u6D88\u606F\u6A21\u677F / Assistant Message Template").setDesc(createFragment((fragment) => {
+      fragment.append("\u8BBE\u7F6E\u52A9\u624B\u6D88\u606F\uFF08\u6807\u9898\u683C\u5F0F\uFF1A\u540C\u6B65\u52A9\u624B_yyyyMMdd_xxx\uFF09\u7684\u663E\u793A\u6A21\u677F\u3002\u52A9\u624B\u6D88\u606F\u4F1A\u81EA\u52A8\u4F7F\u7528\u6B64\u7B80\u6D01\u6A21\u677F\uFF0C\u53BB\u9664\u6807\u9898\u3001\u6807\u7B7E\u7B49\u5197\u4F59\u4FE1\u606F / Set the template for assistant messages (title format: \u540C\u6B65\u52A9\u624B_yyyyMMdd_xxx). Assistant messages will automatically use this clean template, removing titles, tags, and other redundant information", fragment.createEl("br"), fragment.createEl("br"), "\u53EF\u7528\u53D8\u91CF / Available variables:", fragment.createEl("br"), "\u2022 {{{dateSaved}}} = \u4FDD\u5B58\u65F6\u95F4 / saved date", fragment.createEl("br"), "\u2022 {{{content}}} = \u6D88\u606F\u5185\u5BB9 / message content", fragment.createEl("br"), "\u2022 {{{title}}} = \u6807\u9898 / title", fragment.createEl("br"), "\u2022 {{{id}}} = ID", fragment.createEl("br"), fragment.createEl("br"), "\u793A\u4F8B / Examples:", fragment.createEl("br"), "\u2022 ---\\n## \u{1F4C5} {{{dateSaved}}}\\n{{{content}}} \u2192 \u4F7F\u7528\u5206\u9694\u7EBF\u548C\u4E8C\u7EA7\u6807\u9898\uFF08\u63A8\u8350\uFF09", fragment.createEl("br"), "\u2022 {{{content}}} \u2192 \u4EC5\u663E\u793A\u5185\u5BB9", fragment.createEl("br"), "\u2022 \u{1F4C5} {{{dateSaved}}}\\n{{{content}}} \u2192 emoji + \u65F6\u95F4 + \u5185\u5BB9");
+    })).addTextArea((text) => {
+      text.setPlaceholder("---\\n## \u{1F4C5} {{{dateSaved}}}\\n{{{content}}}").setValue(this.plugin.settings.wechatMessageTemplate).onChange(async (value) => {
+        this.plugin.settings.wechatMessageTemplate = value || "---\\n## \u{1F4C5} {{{dateSaved}}}\\n{{{content}}}";
+        await this.plugin.saveSettings();
+      });
+      text.inputEl.setAttr("rows", 3);
+      text.inputEl.setAttr("cols", 50);
+    }).addExtraButton((button) => {
+      button.setIcon("reset").setTooltip("\u91CD\u7F6E\u4E3A\u9ED8\u8BA4\u6A21\u677F / Reset to default template").onClick(async () => {
+        this.plugin.settings.wechatMessageTemplate = DEFAULT_SETTINGS.wechatMessageTemplate;
+        await this.plugin.saveSettings();
+        this.display();
+        new import_obsidian6.Notice("\u52A9\u624B\u6D88\u606F\u6A21\u677F\u5DF2\u91CD\u7F6E / Assistant message template reset");
+      });
     });
     new import_obsidian6.Setting(advancedSettings).setName("\u524D\u7F6E\u5143\u6570\u636E\u6A21\u677F / Front Matter Template").setDesc(createFragment((fragment) => {
       fragment.append("\u8F93\u5165 YAML \u6A21\u677F\u6765\u6E32\u67D3\u524D\u7F6E\u5143\u6570\u636E / Enter YAML template to render the front matter with ", fragment.createEl("a", {
@@ -19530,7 +19576,7 @@ var OmnivorePlugin = class extends import_obsidian8.Plugin {
           const fileAttachment = item.pageType === "FILE" && includeFileAttachment ? await this.downloadFileAsAttachment(item) : void 0;
           log(`\u{1F527} \u6587\u4EF6\u9644\u4EF6\u5904\u7406\u5B8C\u6210`);
           log(`\u{1F527} \u5F00\u59CB\u6E32\u67D3\u5185\u5BB9`);
-          const content = await renderItemContent(item, template, highlightOrder, this.settings.enableHighlightColorRender ? this.settings.highlightManagerId : void 0, this.settings.dateHighlightedFormat, this.settings.dateSavedFormat, isSingleFile, frontMatterVariables, frontMatterTemplate, this.settings.sectionSeparator, this.settings.sectionSeparatorEnd, fileAttachment);
+          const content = await renderItemContent(item, template, highlightOrder, this.settings.enableHighlightColorRender ? this.settings.highlightManagerId : void 0, this.settings.dateHighlightedFormat, this.settings.dateSavedFormat, isSingleFile, frontMatterVariables, frontMatterTemplate, this.settings.sectionSeparator, this.settings.sectionSeparatorEnd, fileAttachment, this.settings.wechatMessageTemplate);
           log(`\u{1F527} \u5185\u5BB9\u6E32\u67D3\u5B8C\u6210`);
           let customFilename = replaceIllegalCharsFile(renderFilename(item, filename, this.settings.filenameDateFormat));
           if (isSingleFile && item.title.startsWith("\u540C\u6B65\u52A9\u624B_")) {
@@ -19561,13 +19607,59 @@ var OmnivorePlugin = class extends import_obsidian8.Plugin {
               const existingContent = await this.app.vault.read(omnivoreFile);
               const contentWithoutFrontmatter = removeFrontMatterFromContent(content);
               const existingContentWithoutFrontmatter = removeFrontMatterFromContent(existingContent);
-              let existingFrontMatter = parseFrontMatterFromContent(existingContent) || [];
+              let parsedExistingFrontMatter = parseFrontMatterFromContent(existingContent);
+              let existingFrontMatter = parsedExistingFrontMatter?.messages || [];
               if (!Array.isArray(existingFrontMatter)) {
-                existingFrontMatter = [existingFrontMatter];
+                existingFrontMatter = Array.isArray(parsedExistingFrontMatter) ? parsedExistingFrontMatter : [parsedExistingFrontMatter];
               }
-              const newFrontMatter = parseFrontMatterFromContent(content);
+              const parsedNewFrontMatter = parseFrontMatterFromContent(content);
+              const newFrontMatter = parsedNewFrontMatter?.messages || [];
               if (!newFrontMatter || !Array.isArray(newFrontMatter) || newFrontMatter.length === 0) {
                 throw new Error("Front matter does not exist in the template");
+              }
+              if (isWeChatMessage(item)) {
+                log("\u{1F527} \u68C0\u6D4B\u5230\u4F01\u5FAE\u6D88\u606F\uFF0C\u4F7F\u7528\u7B80\u6D01\u6A21\u5F0F");
+                const frontMatterIdx2 = findFrontMatterIndex(existingFrontMatter, item.id);
+                if (frontMatterIdx2 >= 0) {
+                  existingFrontMatter[frontMatterIdx2] = newFrontMatter[0];
+                  log(`\u{1F527} \u6D88\u606F\u5DF2\u5B58\u5728\uFF0C\u8DF3\u8FC7\u5185\u5BB9\u66F4\u65B0: ${item.id}`);
+                  const newFrontMatterStr2 = `---
+${(0, import_obsidian8.stringifyYaml)({ messages: existingFrontMatter })}---`;
+                  await this.app.vault.modify(omnivoreFile, `${newFrontMatterStr2}
+
+${existingContentWithoutFrontmatter}`);
+                } else {
+                  existingFrontMatter.push(newFrontMatter[0]);
+                  log(`\u{1F527} \u65B0\u589E\u6D88\u606FID: ${item.id}`);
+                  const simpleContent = renderWeChatMessageSimple(item, this.settings.dateSavedFormat, this.settings.wechatMessageTemplate);
+                  const allMessages = [];
+                  const existingMessages = existingContentWithoutFrontmatter.split(/(?=---\n## 📅)/).filter((s2) => s2.trim());
+                  for (const msg of existingMessages) {
+                    const timeMatch = msg.match(/## 📅 ([\d-:\s]+)/);
+                    if (timeMatch) {
+                      allMessages.push({
+                        content: msg,
+                        timestamp: timeMatch[1].trim()
+                      });
+                    }
+                  }
+                  const newTimeMatch = simpleContent.match(/## 📅 ([\d-:\s]+)/);
+                  if (newTimeMatch) {
+                    allMessages.push({
+                      content: simpleContent,
+                      timestamp: newTimeMatch[1].trim()
+                    });
+                  }
+                  allMessages.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+                  const rebuiltContent = allMessages.map((m) => m.content).join("\n");
+                  const newFrontMatterStr2 = `---
+${(0, import_obsidian8.stringifyYaml)({ messages: existingFrontMatter })}---`;
+                  await this.app.vault.modify(omnivoreFile, `${newFrontMatterStr2}
+
+${rebuiltContent}`);
+                }
+                log("\u{1F527} \u4F01\u5FAE\u6D88\u606F\u5904\u7406\u5B8C\u6210");
+                continue;
               }
               let newContentWithoutFrontMatter;
               const frontMatterIdx = findFrontMatterIndex(existingFrontMatter, item.id);
@@ -19597,7 +19689,9 @@ ${existingContentWithoutFrontmatter}`;
                 existingFrontMatter.unshift(newFrontMatter[0]);
               }
               const newFrontMatterStr = `---
-${(0, import_obsidian8.stringifyYaml)(existingFrontMatter)}---`;
+${(0, import_obsidian8.stringifyYaml)({
+                messages: existingFrontMatter
+              })}---`;
               await this.app.vault.modify(omnivoreFile, `${newFrontMatterStr}
 
 ${newContentWithoutFrontMatter}`);
