@@ -15491,6 +15491,36 @@ var BUILD_CONFIG = {
   VERSION: "1.10.4-local-test"
 };
 
+// src/logger.ts
+var isDevelopment2 = BUILD_CONFIG.IS_DEVELOPMENT;
+var _Logger = class {
+  static setDevMode(devMode) {
+    _Logger.isDev = devMode;
+  }
+  static debug(...args) {
+    if (_Logger.isDev) {
+      console.log(...args);
+    }
+  }
+  static info(...args) {
+    if (_Logger.isDev) {
+      console.info(...args);
+    }
+  }
+  static warn(...args) {
+    console.warn(...args);
+  }
+  static error(...args) {
+    console.error(...args);
+  }
+};
+var Logger = _Logger;
+Logger.isDev = isDevelopment2;
+var log = Logger.debug;
+var logInfo = Logger.info;
+var logWarn = Logger.warn;
+var logError = Logger.error;
+
 // src/settings/local-test.ts
 var LOCAL_TEST_CONFIG = {
   TEST_API_KEY: "o56E762Lh_yloQuLk1Gfim3Xksxs",
@@ -15501,14 +15531,14 @@ var LOCAL_TEST_CONFIG = {
 };
 var getEndpointUrl = (defaultEndpoint) => {
   if (LOCAL_TEST_CONFIG.ENABLE_LOCAL_TEST) {
-    console.log("\u{1F527} \u672C\u5730\u6D4B\u8BD5\u6A21\u5F0F\u5DF2\u542F\u7528\uFF0C\u4F7F\u7528Mock\u670D\u52A1\u5668:", LOCAL_TEST_CONFIG.LOCAL_GRAPHQL_ENDPOINT);
+    log("\u{1F527} \u672C\u5730\u6D4B\u8BD5\u6A21\u5F0F\u5DF2\u542F\u7528\uFF0C\u4F7F\u7528Mock\u670D\u52A1\u5668:", LOCAL_TEST_CONFIG.LOCAL_GRAPHQL_ENDPOINT);
     return LOCAL_TEST_CONFIG.LOCAL_GRAPHQL_ENDPOINT;
   }
   return defaultEndpoint;
 };
 var getContentApiUrl = (endpoint) => {
   if (LOCAL_TEST_CONFIG.ENABLE_LOCAL_TEST) {
-    console.log("\u{1F527} \u672C\u5730\u6D4B\u8BD5\u6A21\u5F0F\uFF1A\u5185\u5BB9API\u91CD\u5B9A\u5411\u5230:", LOCAL_TEST_CONFIG.LOCAL_CONTENT_ENDPOINT);
+    log("\u{1F527} \u672C\u5730\u6D4B\u8BD5\u6A21\u5F0F\uFF1A\u5185\u5BB9API\u91CD\u5B9A\u5411\u5230:", LOCAL_TEST_CONFIG.LOCAL_CONTENT_ENDPOINT);
     return LOCAL_TEST_CONFIG.LOCAL_CONTENT_ENDPOINT;
   }
   return endpoint.replace(/\/api\/graphql$/, "/api/content");
@@ -15670,12 +15700,12 @@ var fetchContentForItems = async (endpoint, apiKey, items) => {
   const content = await getContent(endpoint, apiKey, items.map((a) => a.id));
   await Promise.allSettled(content.data.map(async (c) => {
     if (c.error) {
-      console.error("Error fetching content", c.error);
+      logError("Error fetching content", c.error);
       return;
     }
     const item = items.find((i) => i.id === c.libraryItemId);
     if (!item) {
-      console.error("Item not found", c.libraryItemId);
+      logError("Item not found", c.libraryItemId);
       return;
     }
     item.content = await Promise.race([
@@ -15685,41 +15715,41 @@ var fetchContentForItems = async (endpoint, apiKey, items) => {
   }));
 };
 var getItems = async (endpoint, apiKey, after = 0, first = 10, updatedAt = "", query = "", includeContent = false, format = "html") => {
-  console.log("\u{1F527} getItems\u8C03\u7528\u53C2\u6570:", { endpoint, apiKey, after, first, updatedAt, query });
+  log("\u{1F527} getItems\u8C03\u7528\u53C2\u6570:", { endpoint, apiKey, after, first, updatedAt, query });
   if (LOCAL_TEST_CONFIG.ENABLE_LOCAL_TEST && (!apiKey || apiKey.trim() === "")) {
     apiKey = LOCAL_TEST_CONFIG.TEST_API_KEY;
-    console.log("\u{1F527} \u672C\u5730\u6D4B\u8BD5\u6A21\u5F0F\uFF1A\u4F7F\u7528\u9ED8\u8BA4\u6D4B\u8BD5API\u5BC6\u94A5");
+    log("\u{1F527} \u672C\u5730\u6D4B\u8BD5\u6A21\u5F0F\uFF1A\u4F7F\u7528\u9ED8\u8BA4\u6D4B\u8BD5API\u5BC6\u94A5");
   }
-  console.log("\u{1F527} \u68C0\u67E5endpoint:", endpoint);
-  console.log("\u{1F527} \u662F\u5426\u5305\u542Bobsidian.notebooksyncer.com:", endpoint.includes("obsidian.notebooksyncer.com"));
+  log("\u{1F527} \u68C0\u67E5endpoint:", endpoint);
+  log("\u{1F527} \u662F\u5426\u5305\u542Bobsidian.notebooksyncer.com:", endpoint.includes("obsidian.notebooksyncer.com"));
   if (endpoint.includes("obsidian.notebooksyncer.com")) {
-    console.log("\u{1F527} \u4F7F\u7528\u81EA\u5B9A\u4E49\u670D\u52A1\u5668\u83B7\u53D6\u6570\u636E");
+    log("\u{1F527} \u4F7F\u7528\u81EA\u5B9A\u4E49\u670D\u52A1\u5668\u83B7\u53D6\u6570\u636E");
     try {
       const searchQuery = `${updatedAt ? "updated:" + updatedAt : ""} sort:saved-asc ${query}`.trim();
       const response2 = await searchCustomServerItems(endpoint, after, first, searchQuery, apiKey);
-      console.log("\u{1F527} \u81EA\u5B9A\u4E49\u670D\u52A1\u5668\u54CD\u5E94:", response2);
-      console.log("\u{1F527} response.edges:", response2.edges);
-      console.log("\u{1F527} response.pageInfo:", response2.pageInfo);
+      log("\u{1F527} \u81EA\u5B9A\u4E49\u670D\u52A1\u5668\u54CD\u5E94:", response2);
+      log("\u{1F527} response.edges:", response2.edges);
+      log("\u{1F527} response.pageInfo:", response2.pageInfo);
       if (!response2.edges) {
-        console.error("\u{1F527} response.edges is undefined, full response:", JSON.stringify(response2, null, 2));
+        logError("\u{1F527} response.edges is undefined, full response:", JSON.stringify(response2, null, 2));
         throw new Error("\u670D\u52A1\u5668\u54CD\u5E94\u683C\u5F0F\u9519\u8BEF\uFF1A\u7F3A\u5C11edges\u5B57\u6BB5");
       }
       const items2 = response2.edges.map((e) => e.node);
       const hasNextPage = response2.pageInfo.hasNextPage;
-      console.log(`\u{1F527} \u81EA\u5B9A\u4E49\u670D\u52A1\u5668\u83B7\u53D6\u5230 ${items2.length} \u7BC7\u6587\u7AE0`);
-      console.log(`\u{1F527} includeContent: ${includeContent}`);
+      log(`\u{1F527} \u81EA\u5B9A\u4E49\u670D\u52A1\u5668\u83B7\u53D6\u5230 ${items2.length} \u7BC7\u6587\u7AE0`);
+      log(`\u{1F527} includeContent: ${includeContent}`);
       if (includeContent && items2.length > 0) {
-        console.log("\u{1F527} \u81EA\u5B9A\u4E49\u670D\u52A1\u5668\u8DF3\u8FC7\u5185\u5BB9\u83B7\u53D6\uFF08\u5185\u5BB9\u5DF2\u5728GraphQL\u54CD\u5E94\u4E2D\uFF09");
+        log("\u{1F527} \u81EA\u5B9A\u4E49\u670D\u52A1\u5668\u8DF3\u8FC7\u5185\u5BB9\u83B7\u53D6\uFF08\u5185\u5BB9\u5DF2\u5728GraphQL\u54CD\u5E94\u4E2D\uFF09");
       }
-      console.log("\u{1F527} \u51C6\u5907\u8FD4\u56DE\u6570\u636E");
+      log("\u{1F527} \u51C6\u5907\u8FD4\u56DE\u6570\u636E");
       return [items2, hasNextPage];
     } catch (error) {
-      console.error("\u81EA\u5B9A\u4E49\u670D\u52A1\u5668\u8FDE\u63A5\u5931\u8D25:", error);
+      logError("\u81EA\u5B9A\u4E49\u670D\u52A1\u5668\u8FDE\u63A5\u5931\u8D25:", error);
       throw error;
     }
   }
   if (LOCAL_TEST_CONFIG.ENABLE_LOCAL_TEST) {
-    console.log("\u{1F527} \u4F7F\u7528\u672C\u5730Mock\u670D\u52A1\u5668\u83B7\u53D6\u6570\u636E");
+    log("\u{1F527} \u4F7F\u7528\u672C\u5730Mock\u670D\u52A1\u5668\u83B7\u53D6\u6570\u636E");
     try {
       const searchQuery = `${updatedAt ? "updated:" + updatedAt : ""} sort:saved-asc ${query}`.trim();
       const response2 = await searchLocalItems(endpoint, after, first, searchQuery, apiKey);
@@ -15729,12 +15759,12 @@ var getItems = async (endpoint, apiKey, after = 0, first = 10, updatedAt = "", q
         try {
           await fetchContentForItems(endpoint, apiKey, items2);
         } catch (error) {
-          console.error("Error fetching content from local server", error);
+          logError("Error fetching content from local server", error);
         }
       }
       return [items2, hasNextPage];
     } catch (error) {
-      console.error("\u672C\u5730Mock\u670D\u52A1\u5668\u8FDE\u63A5\u5931\u8D25:", error);
+      logError("\u672C\u5730Mock\u670D\u52A1\u5668\u8FDE\u63A5\u5931\u8D25:", error);
       throw error;
     }
   }
@@ -15755,7 +15785,7 @@ var getItems = async (endpoint, apiKey, after = 0, first = 10, updatedAt = "", q
     try {
       await fetchContentForItems(endpoint, apiKey, items);
     } catch (error) {
-      console.error("Error fetching content", error);
+      logError("Error fetching content", error);
     }
   }
   return [items, response.pageInfo.hasNextPage];
@@ -15770,14 +15800,14 @@ var deleteItem = async (endpoint, apiKey, articleId) => {
   return true;
 };
 var getArticleCount = async (endpoint, apiKey) => {
-  console.log("\u{1F527} getArticleCount\u8C03\u7528\u53C2\u6570:", { endpoint, apiKey: apiKey ? "***" : "(\u7A7A)" });
+  log("\u{1F527} getArticleCount\u8C03\u7528\u53C2\u6570:", { endpoint, apiKey: apiKey ? "***" : "(\u7A7A)" });
   if (LOCAL_TEST_CONFIG.ENABLE_LOCAL_TEST && (!apiKey || apiKey.trim() === "")) {
     apiKey = LOCAL_TEST_CONFIG.TEST_API_KEY;
-    console.log("\u{1F527} \u672C\u5730\u6D4B\u8BD5\u6A21\u5F0F\uFF1A\u4F7F\u7528\u9ED8\u8BA4\u6D4B\u8BD5API\u5BC6\u94A5");
+    log("\u{1F527} \u672C\u5730\u6D4B\u8BD5\u6A21\u5F0F\uFF1A\u4F7F\u7528\u9ED8\u8BA4\u6D4B\u8BD5API\u5BC6\u94A5");
   }
   try {
     const apiUrl = endpoint.replace("/api/graphql", "/api/stats/article-count");
-    console.log("\u{1F527} \u8BF7\u6C42URL:", apiUrl);
+    log("\u{1F527} \u8BF7\u6C42URL:", apiUrl);
     const headers = {
       "Content-Type": "application/json"
     };
@@ -15789,22 +15819,22 @@ var getArticleCount = async (endpoint, apiKey) => {
       method: "GET",
       headers
     });
-    console.log("\u{1F527} \u83B7\u53D6\u6587\u7AE0\u6570\u91CF\u54CD\u5E94:", response.json);
+    log("\u{1F527} \u83B7\u53D6\u6587\u7AE0\u6570\u91CF\u54CD\u5E94:", response.json);
     return response.json.count || 0;
   } catch (error) {
-    console.error("\u83B7\u53D6\u6587\u7AE0\u6570\u91CF\u5931\u8D25:", error);
+    logError("\u83B7\u53D6\u6587\u7AE0\u6570\u91CF\u5931\u8D25:", error);
     throw error;
   }
 };
 var clearAllArticles = async (endpoint, apiKey) => {
-  console.log("\u{1F527} clearAllArticles\u8C03\u7528\u53C2\u6570:", { endpoint, apiKey: apiKey ? "***" : "(\u7A7A)" });
+  log("\u{1F527} clearAllArticles\u8C03\u7528\u53C2\u6570:", { endpoint, apiKey: apiKey ? "***" : "(\u7A7A)" });
   if (LOCAL_TEST_CONFIG.ENABLE_LOCAL_TEST && (!apiKey || apiKey.trim() === "")) {
     apiKey = LOCAL_TEST_CONFIG.TEST_API_KEY;
-    console.log("\u{1F527} \u672C\u5730\u6D4B\u8BD5\u6A21\u5F0F\uFF1A\u4F7F\u7528\u9ED8\u8BA4\u6D4B\u8BD5API\u5BC6\u94A5");
+    log("\u{1F527} \u672C\u5730\u6D4B\u8BD5\u6A21\u5F0F\uFF1A\u4F7F\u7528\u9ED8\u8BA4\u6D4B\u8BD5API\u5BC6\u94A5");
   }
   try {
     const apiUrl = endpoint.replace("/api/graphql", "/api/articles/clear");
-    console.log("\u{1F527} \u8BF7\u6C42URL:", apiUrl);
+    log("\u{1F527} \u8BF7\u6C42URL:", apiUrl);
     const headers = {
       "Content-Type": "application/json"
     };
@@ -15816,43 +15846,13 @@ var clearAllArticles = async (endpoint, apiKey) => {
       method: "DELETE",
       headers
     });
-    console.log("\u{1F527} \u6E05\u7A7A\u6587\u7AE0\u54CD\u5E94:", response.json);
+    log("\u{1F527} \u6E05\u7A7A\u6587\u7AE0\u54CD\u5E94:", response.json);
     return response.json;
   } catch (error) {
-    console.error("\u6E05\u7A7A\u6587\u7AE0\u5931\u8D25:", error);
+    logError("\u6E05\u7A7A\u6587\u7AE0\u5931\u8D25:", error);
     throw error;
   }
 };
-
-// src/logger.ts
-var isDevelopment2 = BUILD_CONFIG.IS_DEVELOPMENT;
-var _Logger = class {
-  static setDevMode(devMode) {
-    _Logger.isDev = devMode;
-  }
-  static debug(...args) {
-    if (_Logger.isDev) {
-      console.log(...args);
-    }
-  }
-  static info(...args) {
-    if (_Logger.isDev) {
-      console.info(...args);
-    }
-  }
-  static warn(...args) {
-    console.warn(...args);
-  }
-  static error(...args) {
-    console.error(...args);
-  }
-};
-var Logger = _Logger;
-Logger.isDev = isDevelopment2;
-var log = Logger.debug;
-var logInfo = Logger.info;
-var logWarn = Logger.warn;
-var logError = Logger.error;
 
 // src/settings/template.ts
 var import_lodash = __toESM(require_lodash());
@@ -16884,7 +16884,7 @@ ${simpleContent}`;
         }
         return getHighlightLocation(a.patch) - getHighlightLocation(b.patch);
       } catch (e) {
-        console.error(e);
+        logError(e);
         return compareHighlightsInFile(a, b);
       }
     });
@@ -16952,7 +16952,7 @@ ${simpleContent}`;
         ...frontMatter
       };
     } catch (error) {
-      console.error("Error parsing front matter template", error);
+      logError("Error parsing front matter template", error);
       frontMatter = {
         ...frontMatter,
         omnivore_error: "There was an error parsing the front matter template. See console for details."
@@ -17098,6 +17098,7 @@ var DEFAULT_SETTINGS = {
     ["green" /* Green */]: "#bbfabb"
   },
   singleFileName: "\u540C\u6B65\u52A9\u624B_{{{date}}}",
+  singleFileDateFormat: "yyyy-MM-dd",
   sectionSeparator: "%%{{{dateSaved}}}_start%%",
   sectionSeparatorEnd: "%%{{{dateSaved}}}_end%%",
   wechatMessageTemplate: "---\n## \u{1F4C5} {{{dateSaved}}}\n{{{content}}}"
@@ -18714,7 +18715,7 @@ var OmnivoreSettingTab = class extends import_obsidian6.PluginSettingTab {
           articleCountSetting.setDesc(`${count} \u7BC7\u6587\u7AE0`);
           new import_obsidian6.Notice(`\u5F53\u524D\u6709 ${count} \u7BC7\u6587\u7AE0`);
         } catch (error) {
-          console.error("\u83B7\u53D6\u6587\u7AE0\u6570\u91CF\u5931\u8D25:", error);
+          logError("\u83B7\u53D6\u6587\u7AE0\u6570\u91CF\u5931\u8D25:", error);
           new import_obsidian6.Notice("\u83B7\u53D6\u6587\u7AE0\u6570\u91CF\u5931\u8D25\uFF0C\u8BF7\u68C0\u67E5API\u5BC6\u94A5\u662F\u5426\u6B63\u786E");
           articleCountSetting.setDesc("\u83B7\u53D6\u5931\u8D25");
         } finally {
@@ -18738,11 +18739,11 @@ var OmnivoreSettingTab = class extends import_obsidian6.PluginSettingTab {
                 const count = await getArticleCount(this.plugin.settings.endpoint, this.plugin.settings.apiKey);
                 articleCountSetting.setDesc(`${count} \u7BC7\u6587\u7AE0`);
               } catch (error) {
-                console.error("\u5237\u65B0\u6587\u7AE0\u6570\u91CF\u5931\u8D25:", error);
+                logError("\u5237\u65B0\u6587\u7AE0\u6570\u91CF\u5931\u8D25:", error);
               }
             }, 1e3);
           } catch (error) {
-            console.error("\u6E05\u7A7A\u6587\u7AE0\u5931\u8D25:", error);
+            logError("\u6E05\u7A7A\u6587\u7AE0\u5931\u8D25:", error);
             new import_obsidian6.Notice("\u6E05\u7A7A\u6587\u7AE0\u5931\u8D25\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5");
           } finally {
             button.setDisabled(false);
@@ -18794,9 +18795,18 @@ var OmnivoreSettingTab = class extends import_obsidian6.PluginSettingTab {
     }));
     if (this.plugin.settings.isSingleFile) {
       new import_obsidian6.Setting(containerEl).setName("\u5355\u6587\u4EF6\u540D\u79F0\u6A21\u677F / Single File Name Template").setDesc(createFragment((fragment) => {
-        fragment.append("\u8BBE\u7F6E\u5408\u5E76\u6587\u4EF6\u7684\u540D\u79F0\u6A21\u677F\u3002\u53EF\u7528\u53D8\u91CF\uFF1A{{{date}}} = \u65E5\u671F / Set the name template for merged files. Available variables: {{{date}}} = date", fragment.createEl("br"), fragment.createEl("br"), "\u793A\u4F8B / Examples:", fragment.createEl("br"), "\u2022 \u540C\u6B65\u52A9\u624B_{{{date}}} \u2192 \u540C\u6B65\u52A9\u624B_2025-01-21", fragment.createEl("br"), "\u2022 \u4F01\u5FAE\u6D88\u606F_{{{date}}} \u2192 \u4F01\u5FAE\u6D88\u606F_2025-01-21", fragment.createEl("br"), fragment.createEl("br"), '\u65E5\u671F\u683C\u5F0F\u4F7F\u7528\u4E0B\u65B9\u7684"\u6587\u4EF6\u540D\u65E5\u671F\u683C\u5F0F"\u8BBE\u7F6E / Date format uses the "Filename Date Format" setting below');
+        fragment.append("\u8BBE\u7F6E\u5408\u5E76\u6587\u4EF6\u7684\u540D\u79F0\u6A21\u677F\u3002\u4F7F\u7528 ", fragment.createEl("code", { text: "{{{date}}}" }), " \u4F5C\u4E3A\u65E5\u671F\u53D8\u91CF / Set the name template for merged files. Use ", fragment.createEl("code", { text: "{{{date}}}" }), " as date variable", fragment.createEl("br"), fragment.createEl("br"), "\u793A\u4F8B / Examples:", fragment.createEl("br"), "\u2022 ", fragment.createEl("code", { text: "\u540C\u6B65\u52A9\u624B_{{{date}}}" }), fragment.createEl("br"), "\u2022 ", fragment.createEl("code", { text: "\u4F01\u5FAE\u6D88\u606F_{{{date}}}" }));
       })).addText((text) => text.setPlaceholder("\u540C\u6B65\u52A9\u624B_{{{date}}}").setValue(this.plugin.settings.singleFileName).onChange(async (value) => {
         this.plugin.settings.singleFileName = value || "\u540C\u6B65\u52A9\u624B_{{{date}}}";
+        await this.plugin.saveSettings();
+      }));
+      new import_obsidian6.Setting(containerEl).setName("\u5355\u6587\u4EF6\u65E5\u671F\u683C\u5F0F / Single File Date Format").setDesc(createFragment((fragment) => {
+        fragment.append("\u8BBE\u7F6E\u5355\u6587\u4EF6\u540D\u79F0\u4E2D ", fragment.createEl("code", { text: "{{{date}}}" }), " \u53D8\u91CF\u7684\u65E5\u671F\u683C\u5F0F\u3002\u683C\u5F0F\u53C2\u8003 / Specify the date format for ", fragment.createEl("code", { text: "{{{date}}}" }), " variable in single file name. Format ", fragment.createEl("a", {
+          text: "reference",
+          href: "https://moment.github.io/luxon/#/formatting?id=table-of-tokens"
+        }), fragment.createEl("br"), fragment.createEl("br"), "\u5E38\u7528\u683C\u5F0F / Common formats:", fragment.createEl("br"), "\u2022 ", fragment.createEl("code", { text: "yyyy-MM-dd" }), " \u2192 2025-01-23", fragment.createEl("br"), "\u2022 ", fragment.createEl("code", { text: "yyyyMMdd" }), " \u2192 20250123", fragment.createEl("br"), "\u2022 ", fragment.createEl("code", { text: "yyyy/MM/dd" }), " \u2192 2025/01/23", fragment.createEl("br"), "\u2022 ", fragment.createEl("code", { text: "yyyy\u5E74MM\u6708dd\u65E5" }), " \u2192 2025\u5E7401\u670823\u65E5");
+      })).addText((text) => text.setPlaceholder("yyyy-MM-dd").setValue(this.plugin.settings.singleFileDateFormat).onChange(async (value) => {
+        this.plugin.settings.singleFileDateFormat = value || "yyyy-MM-dd";
         await this.plugin.saveSettings();
       }));
     }
@@ -19166,6 +19176,8 @@ var ConfigMigrationManager = class {
   constructor(app, plugin) {
     this.BACKUP_KEY = "config-backup";
     this.MAX_BACKUPS = 5;
+    this.VAULT_BACKUP_DIR = ".obsidian/.obsidian-sync-helper-backup";
+    this.VAULT_BACKUP_FILE = "config-history.json";
     this.app = app;
     this.plugin = plugin;
   }
@@ -19176,48 +19188,129 @@ var ConfigMigrationManager = class {
         version: settings.version,
         settings
       };
-      const existingBackups = await this.loadAllBackups();
+      const existingBackups = await this.loadInternalBackups();
       existingBackups.unshift(backupData);
       const limitedBackups = existingBackups.slice(0, this.MAX_BACKUPS);
       const currentData = await this.plugin.loadData() || {};
       currentData[this.BACKUP_KEY] = limitedBackups;
       await this.plugin.saveData(currentData);
+      await this.saveToVaultBackup(backupData);
       log("\u914D\u7F6E\u5907\u4EFD\u6210\u529F", {
-        backupCount: limitedBackups.length,
+        internalBackups: limitedBackups.length,
+        externalBackup: "vault level",
         latestBackup: backupData.timestamp
       });
     } catch (error) {
-      log("\u914D\u7F6E\u5907\u4EFD\u5931\u8D25\uFF0C\u4F46\u4E0D\u5F71\u54CD\u63D2\u4EF6\u6B63\u5E38\u8FD0\u884C", error.message);
+      log("\u914D\u7F6E\u5907\u4EFD\u5931\u8D25,\u4F46\u4E0D\u5F71\u54CD\u63D2\u4EF6\u6B63\u5E38\u8FD0\u884C", error.message);
     }
   }
-  async restoreFromBackup() {
+  async saveToVaultBackup(backupData) {
     try {
-      const backups = await this.loadAllBackups();
+      const backupDir = (0, import_obsidian7.normalizePath)(this.VAULT_BACKUP_DIR);
+      const dirExists = await this.app.vault.adapter.exists(backupDir);
+      if (!dirExists) {
+        try {
+          await this.app.vault.createFolder(backupDir);
+          log("\u521B\u5EFA\u5916\u90E8\u5907\u4EFD\u76EE\u5F55:", backupDir);
+        } catch (error) {
+          if (!error.toString().includes("Folder already exists")) {
+            throw error;
+          }
+          log("\u5916\u90E8\u5907\u4EFD\u76EE\u5F55\u5DF2\u5B58\u5728\uFF0C\u8DF3\u8FC7\u521B\u5EFA");
+        }
+      }
+      const existingBackups = await this.loadVaultBackups();
+      existingBackups.unshift(backupData);
+      const limitedBackups = existingBackups.slice(0, this.MAX_BACKUPS);
+      const backupPath = (0, import_obsidian7.normalizePath)(`${this.VAULT_BACKUP_DIR}/${this.VAULT_BACKUP_FILE}`);
+      const backupContent = JSON.stringify(limitedBackups, null, 2);
+      await this.app.vault.adapter.write(backupPath, backupContent);
+      log("\u5916\u90E8\u5907\u4EFD\u4FDD\u5B58\u6210\u529F:", {
+        path: backupPath,
+        backupCount: limitedBackups.length
+      });
+    } catch (error) {
+      logError("\u5916\u90E8\u5907\u4EFD\u4FDD\u5B58\u5931\u8D25:", error);
+    }
+  }
+  async loadVaultBackups() {
+    try {
+      const backupPath = (0, import_obsidian7.normalizePath)(`${this.VAULT_BACKUP_DIR}/${this.VAULT_BACKUP_FILE}`);
+      log("\u{1F4C2} \u68C0\u67E5\u5916\u90E8\u5907\u4EFD\u6587\u4EF6:", backupPath);
+      const exists = await this.app.vault.adapter.exists(backupPath);
+      if (!exists) {
+        log("\u274C \u5916\u90E8\u5907\u4EFD\u6587\u4EF6\u4E0D\u5B58\u5728:", backupPath);
+        return [];
+      }
+      log("\u2705 \u5916\u90E8\u5907\u4EFD\u6587\u4EF6\u5B58\u5728\uFF0C\u5F00\u59CB\u8BFB\u53D6...");
+      const content = await this.app.vault.adapter.read(backupPath);
+      log("\u{1F4C4} \u5916\u90E8\u5907\u4EFD\u6587\u4EF6\u5185\u5BB9\u957F\u5EA6:", content.length);
+      const backups = JSON.parse(content);
+      log("\u{1F4E6} \u89E3\u6790\u5230\u5907\u4EFD\u6570\u91CF:", Array.isArray(backups) ? backups.length : 0);
+      if (!Array.isArray(backups)) {
+        log("\u274C \u5916\u90E8\u5907\u4EFD\u6570\u636E\u683C\u5F0F\u65E0\u6548\uFF08\u4E0D\u662F\u6570\u7EC4\uFF09");
+        return [];
+      }
+      const validBackups = backups.filter((backup) => backup && backup.timestamp && backup.settings && typeof backup.settings === "object");
+      log("\u2705 \u6709\u6548\u7684\u5916\u90E8\u5907\u4EFD\u6570\u91CF:", validBackups.length);
+      if (validBackups.length > 0) {
+        log("\u{1F4CB} \u6700\u65B0\u5907\u4EFD\u4FE1\u606F:", {
+          timestamp: validBackups[0].timestamp,
+          version: validBackups[0].settings?.version,
+          hasApiKey: !!validBackups[0].settings?.apiKey
+        });
+      }
+      return validBackups;
+    } catch (error) {
+      logError("\u274C \u52A0\u8F7D\u5916\u90E8\u5907\u4EFD\u5931\u8D25:", error);
+      return [];
+    }
+  }
+  async restoreFromInternalBackup() {
+    try {
+      const backups = await this.loadInternalBackups();
       if (backups.length === 0) {
-        log("\u672A\u627E\u5230\u914D\u7F6E\u5907\u4EFD\u6587\u4EF6");
+        log("\u672A\u627E\u5230\u5185\u5D4C\u5907\u4EFD");
         return null;
       }
       const latestBackup = backups[0];
       if (latestBackup.settings) {
-        log("\u4ECE\u5907\u4EFD\u6062\u590D\u914D\u7F6E\u6210\u529F", latestBackup.timestamp);
+        log("\u4ECE\u5185\u5D4C\u5907\u4EFD\u6062\u590D\u914D\u7F6E\u6210\u529F", latestBackup.timestamp);
         return latestBackup.settings;
       }
     } catch (error) {
-      logError("\u4ECE\u5907\u4EFD\u6062\u590D\u914D\u7F6E\u5931\u8D25", error);
+      logError("\u4ECE\u5185\u5D4C\u5907\u4EFD\u6062\u590D\u914D\u7F6E\u5931\u8D25", error);
     }
     return null;
   }
-  async loadAllBackups() {
+  async restoreFromVaultBackup() {
+    try {
+      const backups = await this.loadVaultBackups();
+      if (backups.length === 0) {
+        log("\u672A\u627E\u5230\u5916\u90E8\u5907\u4EFD");
+        return null;
+      }
+      const latestBackup = backups[0];
+      if (latestBackup.settings) {
+        log("\u4ECE\u5916\u90E8\u5907\u4EFD\u6062\u590D\u914D\u7F6E\u6210\u529F", latestBackup.timestamp);
+        return latestBackup.settings;
+      }
+    } catch (error) {
+      logError("\u4ECE\u5916\u90E8\u5907\u4EFD\u6062\u590D\u914D\u7F6E\u5931\u8D25", error);
+    }
+    return null;
+  }
+  async loadInternalBackups() {
     try {
       const data2 = await this.plugin.loadData() || {};
       const backups = data2[this.BACKUP_KEY] || [];
       if (!Array.isArray(backups)) {
-        log("\u5907\u4EFD\u6570\u636E\u683C\u5F0F\u65E0\u6548\uFF0C\u91CD\u65B0\u521D\u59CB\u5316");
+        log("\u5185\u5D4C\u5907\u4EFD\u6570\u636E\u683C\u5F0F\u65E0\u6548,\u91CD\u65B0\u521D\u59CB\u5316");
         return [];
       }
       return backups.filter((backup) => backup && backup.timestamp && backup.settings && typeof backup.settings === "object");
     } catch (error) {
-      logError("\u52A0\u8F7D\u5907\u4EFD\u6570\u636E\u5931\u8D25", error);
+      logError("\u52A0\u8F7D\u5185\u5D4C\u5907\u4EFD\u5931\u8D25", error);
       return [];
     }
   }
@@ -19244,7 +19337,9 @@ var ConfigMigrationManager = class {
       "highlightOrder",
       "enableHighlightColorRender",
       "highlightManagerId",
-      "highlightColorMapping"
+      "highlightColorMapping",
+      "singleFileName",
+      "wechatMessageTemplate"
     ];
     const mergedSettings = { ...DEFAULT_SETTINGS, ...backupSettings };
     for (const field of userConfigFields) {
@@ -19280,40 +19375,68 @@ var ConfigMigrationManager = class {
     return true;
   }
   showUpgradeNotice(fromVersion, toVersion, hasUserConfig) {
-    const message = hasUserConfig ? `\u7B14\u8BB0\u540C\u6B65\u52A9\u624B\u5DF2\u4ECE ${fromVersion} \u5347\u7EA7\u5230 ${toVersion}\uFF0C\u60A8\u7684\u914D\u7F6E\u5DF2\u81EA\u52A8\u4FDD\u7559\u3002` : `\u7B14\u8BB0\u540C\u6B65\u52A9\u624B\u5DF2\u5347\u7EA7\u5230 ${toVersion}\uFF0C\u5DF2\u4ECE\u5907\u4EFD\u6062\u590D\u60A8\u7684\u914D\u7F6E\u3002`;
+    const message = hasUserConfig ? `\u7B14\u8BB0\u540C\u6B65\u52A9\u624B\u5DF2\u4ECE ${fromVersion} \u5347\u7EA7\u5230 ${toVersion},\u60A8\u7684\u914D\u7F6E\u5DF2\u81EA\u52A8\u4FDD\u7559\u3002` : `\u7B14\u8BB0\u540C\u6B65\u52A9\u624B\u5DF2\u5347\u7EA7\u5230 ${toVersion},\u5DF2\u4ECE\u5907\u4EFD\u6062\u590D\u60A8\u7684\u914D\u7F6E\u3002`;
     new import_obsidian7.Notice(message, 8e3);
   }
   async performMigration(currentSettings, manifestVersion) {
-    log("\u5F00\u59CB\u914D\u7F6E\u8FC1\u79FB\u6D41\u7A0B");
-    const backupSettings = await this.restoreFromBackup();
-    if (backupSettings) {
-      const mergedSettings = this.smartMergeSettings(currentSettings, backupSettings, manifestVersion);
-      log("\u914D\u7F6E\u8FC1\u79FB\uFF1A\u4ECE\u5907\u4EFD\u6062\u590D\u914D\u7F6E", {
-        backupVersion: backupSettings.version,
+    log("\u{1F504} \u5F00\u59CB\u914D\u7F6E\u8FC1\u79FB\u6D41\u7A0B", {
+      currentApiKey: currentSettings.apiKey ? "***" : "(\u7A7A)",
+      currentVersion: currentSettings.version,
+      targetVersion: manifestVersion
+    });
+    log("\u{1F50D} \u5C1D\u8BD5\u4ECE\u5185\u5D4C\u5907\u4EFD\u6062\u590D...");
+    const internalBackup = await this.restoreFromInternalBackup();
+    if (internalBackup) {
+      const mergedSettings = this.smartMergeSettings(currentSettings, internalBackup, manifestVersion);
+      log("\u2705 \u914D\u7F6E\u8FC1\u79FB:\u4ECE\u5185\u5D4C\u5907\u4EFD\u6062\u590D\u914D\u7F6E\u6210\u529F", {
+        backupVersion: internalBackup.version,
         targetVersion: manifestVersion,
-        hasApiKey: !!backupSettings.apiKey,
-        hasSyncAt: !!backupSettings.syncAt
+        hasApiKey: !!internalBackup.apiKey
       });
       return mergedSettings;
-    } else {
-      const updatedSettings = { ...currentSettings, version: manifestVersion };
-      log("\u914D\u7F6E\u8FC1\u79FB\uFF1A\u65E0\u5907\u4EFD\uFF0C\u4EC5\u66F4\u65B0\u7248\u672C", {
-        fromVersion: currentSettings.version,
-        toVersion: manifestVersion
-      });
-      return updatedSettings;
     }
+    log("\u274C \u5185\u5D4C\u5907\u4EFD\u4E0D\u53EF\u7528");
+    log("\u{1F50D} \u5C1D\u8BD5\u4ECE\u5916\u90E8\u5907\u4EFD\u6062\u590D...");
+    const vaultBackup = await this.restoreFromVaultBackup();
+    if (vaultBackup) {
+      const mergedSettings = this.smartMergeSettings(currentSettings, vaultBackup, manifestVersion);
+      log("\u2705 \u914D\u7F6E\u8FC1\u79FB:\u4ECE\u5916\u90E8\u5907\u4EFD\u6062\u590D\u914D\u7F6E\u6210\u529F", {
+        backupVersion: vaultBackup.version,
+        targetVersion: manifestVersion,
+        hasApiKey: !!vaultBackup.apiKey,
+        hasSyncAt: !!vaultBackup.syncAt,
+        apiKeyPreview: vaultBackup.apiKey ? vaultBackup.apiKey.substring(0, 10) + "..." : "(\u7A7A)"
+      });
+      return mergedSettings;
+    }
+    log("\u274C \u5916\u90E8\u5907\u4EFD\u4E0D\u53EF\u7528");
+    const updatedSettings = { ...currentSettings, version: manifestVersion };
+    log("\u26A0\uFE0F \u914D\u7F6E\u8FC1\u79FB:\u65E0\u5907\u4EFD\u53EF\u7528,\u4EC5\u66F4\u65B0\u7248\u672C", {
+      fromVersion: currentSettings.version,
+      toVersion: manifestVersion
+    });
+    return updatedSettings;
   }
   async getBackupInfo() {
     try {
-      const backups = await this.loadAllBackups();
+      const internalBackups = await this.loadInternalBackups();
+      const externalBackups = await this.loadVaultBackups();
       return {
-        count: backups.length,
-        latest: backups.length > 0 ? backups[0].timestamp : null
+        internal: {
+          count: internalBackups.length,
+          latest: internalBackups.length > 0 ? internalBackups[0].timestamp : null
+        },
+        external: {
+          count: externalBackups.length,
+          latest: externalBackups.length > 0 ? externalBackups[0].timestamp : null
+        }
       };
     } catch (error) {
       logError("\u83B7\u53D6\u5907\u4EFD\u4FE1\u606F\u5931\u8D25", error);
-      return { count: 0, latest: null };
+      return {
+        internal: { count: 0, latest: null },
+        external: { count: 0, latest: null }
+      };
     }
   }
   async clearAllBackups() {
@@ -19321,6 +19444,11 @@ var ConfigMigrationManager = class {
       const currentData = await this.plugin.loadData() || {};
       currentData[this.BACKUP_KEY] = [];
       await this.plugin.saveData(currentData);
+      const backupPath = (0, import_obsidian7.normalizePath)(`${this.VAULT_BACKUP_DIR}/${this.VAULT_BACKUP_FILE}`);
+      const exists = await this.app.vault.adapter.exists(backupPath);
+      if (exists) {
+        await this.app.vault.adapter.remove(backupPath);
+      }
       log("\u6240\u6709\u5907\u4EFD\u5DF2\u6E05\u7406");
     } catch (error) {
       logError("\u6E05\u7406\u5907\u4EFD\u5931\u8D25", error);
@@ -19335,7 +19463,7 @@ var OmnivorePlugin = class extends import_obsidian8.Plugin {
     this.refreshTimeout = null;
   }
   async onload() {
-    console.log("\u{1F680} \u7B14\u8BB0\u540C\u6B65\u52A9\u624B\u542F\u52A8\u4E2D...");
+    log("\u{1F680} \u7B14\u8BB0\u540C\u6B65\u52A9\u624B\u542F\u52A8\u4E2D...");
     await this.loadEssentialSettings();
     this.registerCoreComponents();
     this.app.workspace.onLayoutReady(() => {
@@ -19348,10 +19476,46 @@ var OmnivorePlugin = class extends import_obsidian8.Plugin {
     try {
       const loadedData = await this.loadData();
       this.settings = Object.assign({}, DEFAULT_SETTINGS, loadedData);
+      log("\u{1F4D6} \u52A0\u8F7D\u4E3B\u914D\u7F6E\u5B8C\u6210", {
+        hasData: !!loadedData,
+        apiKey: this.settings.apiKey ? "***" : "(\u7A7A)",
+        version: this.settings.version,
+        syncAt: this.settings.syncAt || "(\u7A7A)"
+      });
+      const manifestVersion = this.manifest.version;
+      const tempMigrationManager = new ConfigMigrationManager(this.app, this);
+      const needsMigration = tempMigrationManager.isConfigMigrationNeeded(this.settings, manifestVersion);
+      log("\u{1F50D} \u914D\u7F6E\u8FC1\u79FB\u68C0\u67E5", {
+        needsMigration,
+        currentApiKey: this.settings.apiKey ? "***" : "(\u7A7A)",
+        currentVersion: this.settings.version,
+        manifestVersion
+      });
+      if (needsMigration) {
+        log("\u26A0\uFE0F \u68C0\u6D4B\u5230\u9700\u8981\u914D\u7F6E\u8FC1\u79FB\uFF0C\u5C1D\u8BD5\u4ECE\u5907\u4EFD\u6062\u590D...");
+        const restoredSettings = await tempMigrationManager.performMigration(this.settings, manifestVersion);
+        log("\u{1F4E6} \u914D\u7F6E\u6062\u590D\u7ED3\u679C", {
+          beforeApiKey: this.settings.apiKey ? "***" : "(\u7A7A)",
+          afterApiKey: restoredSettings.apiKey ? "***" : "(\u7A7A)",
+          beforeSyncAt: this.settings.syncAt || "(\u7A7A)",
+          afterSyncAt: restoredSettings.syncAt || "(\u7A7A)",
+          beforeVersion: this.settings.version,
+          afterVersion: restoredSettings.version
+        });
+        this.settings = restoredSettings;
+        await this.saveData(this.settings);
+        log("\u2705 \u914D\u7F6E\u8FC1\u79FB\u5B8C\u6210\u5E76\u5DF2\u4FDD\u5B58", {
+          version: this.settings.version,
+          hasApiKey: !!this.settings.apiKey,
+          hasSyncAt: !!this.settings.syncAt
+        });
+      } else {
+        log("\u2705 \u914D\u7F6E\u6B63\u5E38\uFF0C\u65E0\u9700\u8FC1\u79FB");
+      }
       this.settings.syncing = false;
       this.settings.intervalId = 0;
     } catch (error) {
-      console.error("\u52A0\u8F7D\u57FA\u672C\u8BBE\u7F6E\u5931\u8D25:", error);
+      logError("\u274C \u52A0\u8F7D\u57FA\u672C\u8BBE\u7F6E\u5931\u8D25:", error);
       this.settings = { ...DEFAULT_SETTINGS };
     }
   }
@@ -19372,15 +19536,15 @@ var OmnivorePlugin = class extends import_obsidian8.Plugin {
   }
   async initializeNonCriticalFeatures() {
     try {
-      console.log("\u{1F680} \u521D\u59CB\u5316\u975E\u5173\u952E\u529F\u80FD...");
+      log("\u{1F680} \u521D\u59CB\u5316\u975E\u5173\u952E\u529F\u80FD...");
       this.configMigrationManager = new ConfigMigrationManager(this.app, this);
       await this.processSettingsCompatibility();
       this.scheduleSync();
       setOrUpdateHighlightColors(this.settings.highlightColorMapping);
       this.refreshFileExplorer();
-      console.log("\u{1F680} \u975E\u5173\u952E\u529F\u80FD\u521D\u59CB\u5316\u5B8C\u6210");
+      log("\u{1F680} \u975E\u5173\u952E\u529F\u80FD\u521D\u59CB\u5316\u5B8C\u6210");
     } catch (error) {
-      console.error("\u975E\u5173\u952E\u529F\u80FD\u521D\u59CB\u5316\u5931\u8D25:", error);
+      logError("\u975E\u5173\u952E\u529F\u80FD\u521D\u59CB\u5316\u5931\u8D25:", error);
     }
   }
   async processSettingsCompatibility() {
@@ -19399,7 +19563,7 @@ var OmnivorePlugin = class extends import_obsidian8.Plugin {
         await this.saveSettings();
       }
     } catch (error) {
-      console.error("\u5904\u7406\u8BBE\u7F6E\u517C\u5BB9\u6027\u5931\u8D25:", error);
+      logError("\u5904\u7406\u8BBE\u7F6E\u517C\u5BB9\u6027\u5931\u8D25:", error);
     }
   }
   registerCommands() {
@@ -19541,10 +19705,10 @@ var OmnivorePlugin = class extends import_obsidian8.Plugin {
               const year = dateStr.substring(0, 4);
               const month = dateStr.substring(4, 6);
               const day = dateStr.substring(6, 8);
-              const extractedDate = `${year}-${month}-${day}`;
+              const isoDate = `${year}-${month}-${day}T00:00:00.000Z`;
               const tempItem = {
                 ...item,
-                savedAt: extractedDate
+                savedAt: isoDate
               };
               folderName = replaceIllegalCharsFolder((0, import_obsidian8.normalizePath)(render3(tempItem, folder, this.settings.folderDateFormat)));
             } else {
@@ -19587,13 +19751,13 @@ var OmnivorePlugin = class extends import_obsidian8.Plugin {
                 const year = dateStr.substring(0, 4);
                 const month = dateStr.substring(4, 6);
                 const day = dateStr.substring(6, 8);
-                const formattedDate = `${year}-${month}-${day}`;
+                const isoDate = `${year}-${month}-${day}T00:00:00.000Z`;
                 const singleFileTemplate = singleFileName || "\u540C\u6B65\u52A9\u624B_{{{date}}}";
                 const tempItem = {
                   ...item,
-                  savedAt: formattedDate
+                  savedAt: isoDate
                 };
-                customFilename = replaceIllegalCharsFile(renderFilename(tempItem, singleFileTemplate, this.settings.filenameDateFormat));
+                customFilename = replaceIllegalCharsFile(renderFilename(tempItem, singleFileTemplate, this.settings.singleFileDateFormat));
                 log(`\u{1F527} \u4F01\u5FAE\u6D88\u606F\u4F7F\u7528\u5355\u6587\u4EF6\u6A21\u677F: ${customFilename}`);
               }
             }
