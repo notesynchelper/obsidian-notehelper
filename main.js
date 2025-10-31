@@ -22301,8 +22301,8 @@ var renderLabels = (labels) => {
     name: l2.name.replaceAll(" ", "_")
   }));
 };
-var renderItemContent = async (item, template, highlightOrder, highlightManagerId, dateHighlightedFormat, dateSavedFormat, isSingleFile, frontMatterVariables, frontMatterTemplate, sectionSeparator, sectionSeparatorEnd, fileAttachment, wechatMessageTemplate) => {
-  if (isSingleFile && isWeChatMessage(item)) {
+var renderItemContent = async (item, template, highlightOrder, highlightManagerId, dateHighlightedFormat, dateSavedFormat, shouldMergeIntoSingleFile, frontMatterVariables, frontMatterTemplate, sectionSeparator, sectionSeparatorEnd, fileAttachment, wechatMessageTemplate) => {
+  if (shouldMergeIntoSingleFile && isWeChatMessage(item)) {
     const dateSaved2 = formatDate(item.savedAt, dateSavedFormat);
     const simpleContent = wechatMessageTemplate ? renderWeChatMessageSimple(item, dateSavedFormat, wechatMessageTemplate) : `\u{1F4C5} ${dateSaved2}
 
@@ -22421,7 +22421,7 @@ ${simpleContent}`;
   const content = mustache_default.render(template, articleView);
   let contentWithoutFrontMatter = removeFrontMatterFromContent(content);
   let frontMatterYaml = (0, import_obsidian3.stringifyYaml)(frontMatter);
-  if (isSingleFile) {
+  if (shouldMergeIntoSingleFile) {
     if (sectionSeparator && sectionSeparatorEnd) {
       const renderedStart = mustache_default.render(sectionSeparator, articleView);
       const renderedEnd = mustache_default.render(sectionSeparatorEnd, articleView);
@@ -22527,7 +22527,7 @@ var DEFAULT_SETTINGS = {
   filenameDateFormat: "yyyy-MM-dd",
   attachmentFolder: "\u7B14\u8BB0\u540C\u6B65\u52A9\u624B/attachments",
   version: "0.0.0",
-  isSingleFile: true,
+  mergeMode: "messages" /* MESSAGES */,
   frequency: 0,
   intervalId: 0,
   frontMatterVariables: [],
@@ -24245,12 +24245,14 @@ var OmnivoreSettingTab = class extends import_obsidian6.PluginSettingTab {
       this.plugin.settings.syncAt = value;
       await this.plugin.saveSettings();
     }));
-    new import_obsidian6.Setting(containerEl).setName("\u6D88\u606F\u5408\u5E76\u6A21\u5F0F\uFF08\u5355\u6587\u4EF6\u6A21\u5F0F\uFF09/ Message Merge Mode (Single File)").setDesc("\u52FE\u9009\u6B64\u9009\u9879\u5C06\u5F53\u5929\u6240\u6709\u6587\u672C\u6D88\u606F\u3001\u56FE\u7247\u3001\u804A\u5929\u8BB0\u5F55\u4FDD\u5B58\u5728\u4E00\u4E2A\u6587\u4EF6\u4E2D / Check this box to save all text messages, images, and chat records from the same day in a single file").addToggle((toggle) => toggle.setValue(this.plugin.settings.isSingleFile).onChange(async (value) => {
-      this.plugin.settings.isSingleFile = value;
+    new import_obsidian6.Setting(containerEl).setName("\u6D88\u606F\u5408\u5E76\u6A21\u5F0F / Message Merge Mode").setDesc(createFragment((fragment) => {
+      fragment.append("\u9009\u62E9\u6587\u7AE0\u548C\u6D88\u606F\u7684\u5408\u5E76\u65B9\u5F0F / Select how articles and messages are merged:", fragment.createEl("br"), fragment.createEl("br"), fragment.createEl("strong", { text: "\u4E0D\u5408\u5E76" }), ": \u6BCF\u7BC7\u6587\u7AE0\u72EC\u7ACB\u6587\u4EF6\uFF08\u6807\u9898\u76F8\u540C\u65F6\u81EA\u52A8\u6DFB\u52A0\u6570\u5B57\u540E\u7F00\uFF09 / Each article in separate file", fragment.createEl("br"), fragment.createEl("strong", { text: "\u4EC5\u5408\u5E76\u6D88\u606F" }), ": \u4F01\u5FAE\u6D88\u606F\u6309\u65E5\u671F\u5408\u5E76\uFF0C\u666E\u901A\u6587\u7AE0\u72EC\u7ACB\u4FDD\u5B58\uFF08\u63A8\u8350\uFF09/ Merge WeChat messages by date, keep articles separate (Recommended)", fragment.createEl("br"), fragment.createEl("strong", { text: "\u5408\u5E76\u6240\u6709" }), ": \u540C\u540D\u6587\u7AE0\u548C\u6D88\u606F\u90FD\u5408\u5E76\u5230\u4E00\u4E2A\u6587\u4EF6 / Merge all articles and messages with same name");
+    })).addDropdown((dropdown) => dropdown.addOption("none" /* NONE */, "\u4E0D\u5408\u5E76 / No Merge").addOption("messages" /* MESSAGES */, "\u4EC5\u5408\u5E76\u6D88\u606F / Merge Messages Only").addOption("all" /* ALL */, "\u5408\u5E76\u6240\u6709 / Merge All").setValue(this.plugin.settings.mergeMode).onChange(async (value) => {
+      this.plugin.settings.mergeMode = value;
       await this.plugin.saveSettings();
       this.display();
     }));
-    if (this.plugin.settings.isSingleFile) {
+    if (this.plugin.settings.mergeMode !== "none" /* NONE */) {
       new import_obsidian6.Setting(containerEl).setName("\u5355\u6587\u4EF6\u540D\u79F0\u6A21\u677F / Single File Name Template").setDesc(createFragment((fragment) => {
         fragment.append("\u8BBE\u7F6E\u5408\u5E76\u6587\u4EF6\u7684\u540D\u79F0\u6A21\u677F\u3002\u4F7F\u7528 ", fragment.createEl("code", { text: "{{{date}}}" }), " \u4F5C\u4E3A\u65E5\u671F\u53D8\u91CF / Set the name template for merged files. Use ", fragment.createEl("code", { text: "{{{date}}}" }), " as date variable", fragment.createEl("br"), fragment.createEl("br"), "\u793A\u4F8B / Examples:", fragment.createEl("br"), "\u2022 ", fragment.createEl("code", { text: "\u540C\u6B65\u52A9\u624B_{{{date}}}" }), fragment.createEl("br"), "\u2022 ", fragment.createEl("code", { text: "\u4F01\u5FAE\u6D88\u606F_{{{date}}}" }));
       })).addText((text) => text.setPlaceholder("\u540C\u6B65\u52A9\u624B_{{{date}}}").setValue(this.plugin.settings.singleFileName).onChange(async (value) => {
@@ -24824,7 +24826,7 @@ var ConfigMigrationManager = class {
       "folderDateFormat",
       "filenameDateFormat",
       "attachmentFolder",
-      "isSingleFile",
+      "mergeMode",
       "frontMatterVariables",
       "frontMatterTemplate",
       "highlightOrder",
@@ -24835,6 +24837,14 @@ var ConfigMigrationManager = class {
       "wechatMessageTemplate"
     ];
     const mergedSettings = { ...DEFAULT_SETTINGS, ...backupSettings };
+    if (backupSettings.isSingleFile !== void 0 && !backupSettings.mergeMode) {
+      const oldIsSingleFile = backupSettings.isSingleFile;
+      mergedSettings.mergeMode = oldIsSingleFile ? "messages" : "none";
+      log("\u914D\u7F6E\u8FC1\u79FB\uFF1A\u5C06 isSingleFile \u8F6C\u6362\u4E3A mergeMode", {
+        isSingleFile: oldIsSingleFile,
+        mergeMode: mergedSettings.mergeMode
+      });
+    }
     for (const field of userConfigFields) {
       const key = field;
       const backupValue = backupSettings[key];
@@ -25620,11 +25630,12 @@ var OmnivorePlugin = class extends import_obsidian11.Plugin {
       template,
       folder,
       filename,
-      isSingleFile,
+      mergeMode,
       frontMatterVariables,
       frontMatterTemplate,
       singleFileName
     } = this.settings;
+    const isSingleFile = mergeMode !== "none" /* NONE */;
     if (syncing) {
       new import_obsidian11.Notice("\u{1F422} \u6B63\u5728\u540C\u6B65\u4E2D...");
       return;
@@ -25656,7 +25667,9 @@ var OmnivorePlugin = class extends import_obsidian11.Plugin {
         log(`\u{1F527} \u6210\u529F\u83B7\u53D6\u6570\u636E\uFF0Citems\u6570\u91CF: ${items.length}\uFF0ChasNextPage: ${hasNextPage}`);
         log(`\u{1F527} \u51C6\u5907\u5F00\u59CB\u5904\u7406\u6587\u7AE0`);
         for (const item of items) {
+          log(`\u{1F527} ========================================`);
           log(`\u{1F527} \u5F00\u59CB\u5904\u7406\u6587\u7AE0: ${item.title}`);
+          log(`\u{1F527} \u6587\u7AE0ID: ${item.id}`);
           let folderName;
           if (isSingleFile && item.title.startsWith("\u540C\u6B65\u52A9\u624B_")) {
             const titleParts = item.title.split("_");
@@ -25700,7 +25713,8 @@ var OmnivorePlugin = class extends import_obsidian11.Plugin {
           const fileAttachment = item.pageType === "FILE" && includeFileAttachment ? await this.downloadFileAsAttachment(item) : void 0;
           log(`\u{1F527} \u6587\u4EF6\u9644\u4EF6\u5904\u7406\u5B8C\u6210`);
           log(`\u{1F527} \u5F00\u59CB\u6E32\u67D3\u5185\u5BB9`);
-          const content = await renderItemContent(item, template, highlightOrder, this.settings.enableHighlightColorRender ? this.settings.highlightManagerId : void 0, this.settings.dateHighlightedFormat, this.settings.dateSavedFormat, isSingleFile, frontMatterVariables, frontMatterTemplate, this.settings.sectionSeparator, this.settings.sectionSeparatorEnd, fileAttachment, this.settings.wechatMessageTemplate);
+          const shouldMergeIntoSingleFile = mergeMode === "messages" /* MESSAGES */ && isWeChatMessage(item) || mergeMode === "all" /* ALL */;
+          const content = await renderItemContent(item, template, highlightOrder, this.settings.enableHighlightColorRender ? this.settings.highlightManagerId : void 0, this.settings.dateHighlightedFormat, this.settings.dateSavedFormat, shouldMergeIntoSingleFile, frontMatterVariables, frontMatterTemplate, this.settings.sectionSeparator, this.settings.sectionSeparatorEnd, fileAttachment, this.settings.wechatMessageTemplate);
           log(`\u{1F527} \u5185\u5BB9\u6E32\u67D3\u5B8C\u6210`);
           let customFilename = replaceIllegalCharsFile(renderFilename(item, filename, this.settings.filenameDateFormat));
           if (isSingleFile && item.title.startsWith("\u540C\u6B65\u52A9\u624B_")) {
@@ -25727,11 +25741,12 @@ var OmnivorePlugin = class extends import_obsidian11.Plugin {
           log(`\u{1F527} \u51C6\u5907\u521B\u5EFA/\u66F4\u65B0\u6587\u4EF6: ${normalizedPath}`);
           const omnivoreFile = this.app.vault.getAbstractFileByPath(normalizedPath);
           if (omnivoreFile instanceof import_obsidian11.TFile) {
-            if (isSingleFile) {
-              const existingContent = await this.app.vault.read(omnivoreFile);
+            const shouldMerge = mergeMode === "messages" /* MESSAGES */ && isWeChatMessage(item) || mergeMode === "all" /* ALL */;
+            if (shouldMerge) {
+              const existingContent2 = await this.app.vault.read(omnivoreFile);
               const contentWithoutFrontmatter = removeFrontMatterFromContent(content);
-              const existingContentWithoutFrontmatter = removeFrontMatterFromContent(existingContent);
-              let parsedExistingFrontMatter = parseFrontMatterFromContent(existingContent);
+              const existingContentWithoutFrontmatter = removeFrontMatterFromContent(existingContent2);
+              let parsedExistingFrontMatter = parseFrontMatterFromContent(existingContent2);
               let existingFrontMatter = parsedExistingFrontMatter?.messages || [];
               if (!Array.isArray(existingFrontMatter)) {
                 existingFrontMatter = Array.isArray(parsedExistingFrontMatter) ? parsedExistingFrontMatter : [parsedExistingFrontMatter];
@@ -25827,50 +25842,53 @@ ${newContentWithoutFrontMatter}`);
               processedFiles.push(omnivoreFile);
               continue;
             }
-            await this.app.fileManager.processFrontMatter(omnivoreFile, async (frontMatter) => {
-              const id = frontMatter.id;
-              if (id && id !== item.id) {
-                let suffix = 2;
-                let newPageName = `${folderName}/${customFilename} ${suffix}.md`;
-                let newNormalizedPath = (0, import_obsidian11.normalizePath)(newPageName);
-                let newOmnivoreFile = this.app.vault.getAbstractFileByPath(newNormalizedPath);
-                while (newOmnivoreFile instanceof import_obsidian11.TFile) {
-                  const existingFrontMatter = this.app.metadataCache.getFileCache(newOmnivoreFile)?.frontmatter;
-                  if (existingFrontMatter?.id === item.id) {
-                    const existingContent2 = await this.app.vault.read(newOmnivoreFile);
-                    if (existingContent2 !== content) {
-                      await this.app.vault.modify(newOmnivoreFile, content);
-                    }
-                    return;
+            log(`\u{1F527} \u6587\u4EF6\u5DF2\u5B58\u5728\uFF0C\u8BFB\u53D6\u5185\u5BB9\u68C0\u67E5ID`);
+            const existingContent = await this.app.vault.read(omnivoreFile);
+            const idMatch = existingContent.match(/^---\r?\n(?:[\s\S]*?)^id:\s*(.+?)\s*$/m);
+            const existingId = idMatch ? idMatch[1].trim() : null;
+            log(`\u{1F527} \u73B0\u6709\u6587\u4EF6ID: ${existingId}, \u5F53\u524D\u6587\u7AE0ID: ${item.id}`);
+            if (existingId && existingId !== item.id) {
+              log(`\u{1F527} ID\u4E0D\u540C\uFF0C\u9700\u8981\u521B\u5EFA\u65B0\u6587\u4EF6`);
+              let suffix = 2;
+              let newPageName = `${folderName}/${customFilename} ${suffix}.md`;
+              let newNormalizedPath = (0, import_obsidian11.normalizePath)(newPageName);
+              let newOmnivoreFile = this.app.vault.getAbstractFileByPath(newNormalizedPath);
+              while (newOmnivoreFile instanceof import_obsidian11.TFile) {
+                log(`\u{1F527} \u68C0\u67E5\u6587\u4EF6: ${newNormalizedPath}`);
+                const checkContent = await this.app.vault.read(newOmnivoreFile);
+                const checkIdMatch = checkContent.match(/^---\r?\n(?:[\s\S]*?)^id:\s*(.+?)\s*$/m);
+                const checkId = checkIdMatch ? checkIdMatch[1].trim() : null;
+                if (checkId === item.id) {
+                  log(`\u{1F527} \u627E\u5230\u76F8\u540CID\u7684\u6587\u4EF6\uFF0C\u66F4\u65B0: ${newNormalizedPath}`);
+                  if (checkContent !== content) {
+                    await this.app.vault.modify(newOmnivoreFile, content);
+                    log(`\u{1F527} \u6587\u4EF6\u66F4\u65B0\u5B8C\u6210: ${newNormalizedPath}`);
                   }
-                  suffix++;
-                  newPageName = `${folderName}/${customFilename} ${suffix}.md`;
-                  newNormalizedPath = (0, import_obsidian11.normalizePath)(newPageName);
-                  newOmnivoreFile = this.app.vault.getAbstractFileByPath(newNormalizedPath);
+                  await this.enqueueFileForImageLocalization(newOmnivoreFile);
+                  processedFiles.push(newOmnivoreFile);
+                  continue;
                 }
-                try {
-                  log(`\u{1F527} \u521B\u5EFA\u540C\u540D\u6587\u4EF6\uFF08\u7F16\u53F7 ${suffix}\uFF09: ${newNormalizedPath}`);
-                  await this.app.vault.create(newNormalizedPath, content);
-                  log(`\u{1F527} \u6587\u4EF6\u521B\u5EFA\u6210\u529F: ${newNormalizedPath}`);
-                } catch (error) {
-                  if (error.toString().includes("File already exists")) {
-                    log(`\u{1F527} \u6587\u4EF6\u5DF2\u5B58\u5728\uFF0C\u5C1D\u8BD5\u66F4\u65B0: ${newNormalizedPath}`);
-                    const existingFile = this.app.vault.getAbstractFileByPath(newNormalizedPath);
-                    if (existingFile instanceof import_obsidian11.TFile) {
-                      await this.app.vault.modify(existingFile, content);
-                    }
-                  } else {
-                    logError(`\u{1F527} \u6587\u4EF6\u521B\u5EFA\u5931\u8D25: ${newNormalizedPath}`, error);
-                    throw error;
-                  }
-                }
-                return;
+                suffix++;
+                newPageName = `${folderName}/${customFilename} ${suffix}.md`;
+                newNormalizedPath = (0, import_obsidian11.normalizePath)(newPageName);
+                newOmnivoreFile = this.app.vault.getAbstractFileByPath(newNormalizedPath);
               }
-              const existingContent = await this.app.vault.read(omnivoreFile);
-              if (existingContent !== content) {
-                await this.app.vault.modify(omnivoreFile, content);
-              }
-            });
+              log(`\u{1F527} \u627E\u5230\u53EF\u7528\u6587\u4EF6\u540D\uFF08\u7F16\u53F7 ${suffix}\uFF09: ${newNormalizedPath}`);
+              const createdFile = await this.app.vault.create(newNormalizedPath, content);
+              log(`\u{1F527} \u6587\u4EF6\u521B\u5EFA\u6210\u529F: ${newNormalizedPath}`);
+              await this.enqueueFileForImageLocalization(createdFile);
+              processedFiles.push(createdFile);
+              continue;
+            }
+            log(`\u{1F527} \u6587\u4EF6ID\u76F8\u540C\uFF0C\u68C0\u67E5\u662F\u5426\u9700\u8981\u66F4\u65B0`);
+            if (existingContent !== content) {
+              log(`\u{1F527} \u5185\u5BB9\u6709\u53D8\u5316\uFF0C\u66F4\u65B0\u6587\u4EF6: ${omnivoreFile.path}`);
+              await this.app.vault.modify(omnivoreFile, content);
+            } else {
+              log(`\u{1F527} \u5185\u5BB9\u65E0\u53D8\u5316\uFF0C\u8DF3\u8FC7\u66F4\u65B0`);
+            }
+            await this.enqueueFileForImageLocalization(omnivoreFile);
+            processedFiles.push(omnivoreFile);
             continue;
           }
           try {
