@@ -1,0 +1,20 @@
+# Node modules
+node_modules/
+
+# Build outputs
+main.js
+*.js.map
+
+# Development files
+.DS_Store
+.idea/
+.vscode/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment files
+.env
+.env.local
