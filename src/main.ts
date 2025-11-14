@@ -59,7 +59,7 @@ export default class OmnivorePlugin extends Plugin {
     this.app.workspace.onLayoutReady(() => {
       // 延迟1秒后执行非关键初始化
       setTimeout(() => {
-        this.initializeNonCriticalFeatures()
+        void this.initializeNonCriticalFeatures()
       }, 1000)
     })
   }
@@ -372,7 +372,7 @@ export default class OmnivorePlugin extends Plugin {
     }
   }
 
-  async scheduleSync() {
+  scheduleSync(): void {
     // clear previous interval
     if (this.settings.intervalId > 0) {
       window.clearInterval(this.settings.intervalId)
@@ -383,8 +383,8 @@ export default class OmnivorePlugin extends Plugin {
     if (frequency > 0) {
       // schedule new interval
       const intervalId = window.setInterval(
-        async () => {
-          await this.fetchOmnivore(false)
+        () => {
+          void this.fetchOmnivore(false)
         },
         frequency * 60 * 1000,
       )
@@ -462,11 +462,15 @@ export default class OmnivorePlugin extends Plugin {
     try {
       log(`笔记同步助手开始同步，自: '${syncAt}'`)
 
-      manualSync && new Notice('🚀 正在获取数据...')
+      if (manualSync) {
+        new Notice('🚀 正在获取数据...')
+      }
 
       // pre-parse template
       log('🔧 开始解析前端模板')
-      frontMatterTemplate && preParseTemplate(frontMatterTemplate)
+      if (frontMatterTemplate) {
+        preParseTemplate(frontMatterTemplate)
+      }
       log('🔧 开始解析主模板')
       const templateSpans = preParseTemplate(template)
       log('🔧 模板解析完成，templateSpans:', templateSpans)
@@ -573,7 +577,7 @@ export default class OmnivorePlugin extends Plugin {
             (mergeMode === MergeMode.MESSAGES && isWeChatMessage(item)) ||
             mergeMode === MergeMode.ALL
 
-          const content = await renderItemContent(
+          const content = renderItemContent(
             item,
             template,
             highlightOrder,
@@ -925,7 +929,9 @@ export default class OmnivorePlugin extends Plugin {
       await this.saveSettings()
 
       log('笔记同步助手同步完成', this.settings.syncAt)
-      manualSync && new Notice('🎉 同步完成')
+      if (manualSync) {
+        new Notice('🎉 同步完成')
+      }
 
       // 刷新文件浏览器以显示新创建的文件和文件夹
       this.refreshFileExplorer()
@@ -981,7 +987,7 @@ export default class OmnivorePlugin extends Plugin {
     }
 
     try {
-      const isDeleted = deleteItem(
+      const isDeleted = await deleteItem(
         this.settings.endpoint,
         this.settings.apiKey,
         itemId,
@@ -994,7 +1000,7 @@ export default class OmnivorePlugin extends Plugin {
       logError(e)
     }
 
-    await this.app.vault.delete(file)
+    await this.app.vault.trash(file, true)
   }
 
   

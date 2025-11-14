@@ -38,7 +38,8 @@ export function calculateMD5(data: ArrayBuffer): string {
   }
 
   // 转换为 WordArray 供 crypto-js 使用
-  const wordArray = CryptoJS.lib.WordArray.create(sampledData as any)
+  // CryptoJS WordArray.create expects an array-like structure
+  const wordArray = CryptoJS.lib.WordArray.create(sampledData as unknown as number[])
   const hash = CryptoJS.MD5(wordArray).toString()
 
   return `${hash}_MD5`

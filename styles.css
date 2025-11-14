@@ -75,3 +75,52 @@ mark.omni-green {
 mark.omni-blue {
 	--text-highlight-rgb: var(--omni-blue);
 }
+
+/*----------------------------------------------------------------
+VIP Status Display
+----------------------------------------------------------------*/
+
+.vip-status-container {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin: 15px 0;
+	padding: 12px 15px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	background: var(--background-secondary);
+}
+
+.vip-status-left {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.vip-status-info {
+	font-size: 0.95em;
+	color: var(--text-normal);
+	font-weight: 500;
+}
+
+.vip-status-qr-label {
+	font-size: 0.85em;
+	color: var(--text-muted);
+	font-weight: 500;
+}
+
+.vip-status-qr {
+	flex-shrink: 0;
+	margin-left: 20px;
+	display: flex;
+	align-items: center;
+}
+
+.vip-status-qr img {
+	display: block;
+	width: 120px;
+	height: 120px;
+	border-radius: 4px;
+	border: 1px solid var(--background-modifier-border);
+}

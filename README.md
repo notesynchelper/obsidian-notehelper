@@ -138,6 +138,14 @@ git push origin x.x.x
 
 Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
 
+## Credits
+
+This plugin is inspired by and builds upon:
+- [Obsidian Omnivore](https://github.com/omnivore-app/obsidian-omnivore) by Omnivore
+- Original work by [hkgnp](https://github.com/hkgnp)
+
+We're grateful for their contributions to the open source community.
+
 ## License
 
 [MIT](LICENSE)
@@ -290,6 +298,14 @@ git push origin x.x.x
 ## 贡献
 
 欢迎提交 Pull Request。对于重大变更，请先开 issue 讨论您想要改变的内容。
+
+## 致谢
+
+本插件的开发受到以下项目的启发并基于其构建：
+- [Obsidian Omnivore](https://github.com/omnivore-app/obsidian-omnivore) by Omnivore
+- 原始项目作者 [hkgnp](https://github.com/hkgnp)
+
+感谢他们对开源社区的贡献。
 
 ## 许可证
 

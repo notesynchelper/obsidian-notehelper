@@ -4,6 +4,17 @@ import { createPopper, type Instance as PopperInstance } from '@popperjs/core'
 import { App, type ISuggestOwner, Scope } from 'obsidian'
 import { wrapAround } from '../util'
 
+// Internal Obsidian API types (not publicly exposed)
+interface ObsidianInternalApp extends App {
+  dom: {
+    appContainerEl: HTMLElement
+  }
+  keymap: {
+    pushScope(scope: Scope): void
+    popScope(scope: Scope): void
+  }
+}
+
 class Suggest<T> {
   private owner: ISuggestOwner<T>
   private values: T[]
@@ -137,14 +148,12 @@ export abstract class TextInputSuggest<T> implements ISuggestOwner<T> {
 
     if (suggestions.length > 0) {
       this.suggest.setSuggestions(suggestions)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      this.open((<any>this.app).dom.appContainerEl, this.inputEl)
+      this.open((this.app as ObsidianInternalApp).dom.appContainerEl, this.inputEl)
     }
   }
 
   open(container: HTMLElement, inputEl: HTMLElement): void {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ;(<any>this.app).keymap.pushScope(this.scope)
+    ;(this.app as ObsidianInternalApp).keymap.pushScope(this.scope)
 
     container.appendChild(this.suggestEl)
     this.popper = createPopper(inputEl, this.suggestEl, {
@@ -163,7 +172,7 @@ export abstract class TextInputSuggest<T> implements ISuggestOwner<T> {
               return
             }
             state.styles.popper.width = targetWidth
-            instance.update()
+            void instance.update()
           },
           phase: 'beforeWrite',
           requires: ['computeStyles'],
@@ -173,8 +182,7 @@ export abstract class TextInputSuggest<T> implements ISuggestOwner<T> {
   }
 
   close(): void {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ;(<any>this.app).keymap.popScope(this.scope)
+    ;(this.app as ObsidianInternalApp).keymap.popScope(this.scope)
 
     this.suggest.setSuggestions([])
     this.popper.destroy()

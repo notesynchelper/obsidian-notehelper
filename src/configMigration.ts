@@ -23,12 +23,18 @@ export class ConfigMigrationManager {
   private readonly BACKUP_KEY = 'config-backup'
   private readonly MAX_BACKUPS = 5
   // Vault级外部备份路径 (插件目录外,升级时不会被删除)
-  private readonly VAULT_BACKUP_DIR = '.obsidian/.obsidian-sync-helper-backup'
   private readonly VAULT_BACKUP_FILE = 'config-history.json'
 
   constructor(app: App, plugin: Plugin) {
     this.app = app
     this.plugin = plugin
+  }
+
+  /**
+   * 获取 Vault 级外部备份目录路径
+   */
+  private get VAULT_BACKUP_DIR(): string {
+    return `${this.app.vault.configDir}/.obsidian-sync-helper-backup`
   }
 
   /**
@@ -133,7 +139,7 @@ export class ConfigMigrationManager {
       const content = await this.app.vault.adapter.read(backupPath)
       log('📄 外部备份文件内容长度:', content.length)
 
-      const backups = JSON.parse(content)
+      const backups = JSON.parse(content) as unknown
       log('📦 解析到备份数量:', Array.isArray(backups) ? backups.length : 0)
 
       // 验证备份数据格式
@@ -142,12 +148,17 @@ export class ConfigMigrationManager {
         return []
       }
 
-      const validBackups = backups.filter((backup: any) =>
-        backup &&
-        backup.timestamp &&
-        backup.settings &&
-        typeof backup.settings === 'object'
-      )
+      const validBackups = backups.filter((backup: unknown): backup is BackupData => {
+        if (typeof backup !== 'object' || backup === null) {
+          return false
+        }
+        const obj = backup as Record<string, unknown>
+        return (
+          'timestamp' in obj &&
+          'settings' in obj &&
+          typeof obj.settings === 'object'
+        )
+      })
 
       log('✅ 有效的外部备份数量:', validBackups.length)
       if (validBackups.length > 0) {
@@ -224,12 +235,17 @@ export class ConfigMigrationManager {
         return []
       }
 
-      return backups.filter((backup: any) =>
-        backup &&
-        backup.timestamp &&
-        backup.settings &&
-        typeof backup.settings === 'object'
-      )
+      return backups.filter((backup: unknown): backup is BackupData => {
+        if (typeof backup !== 'object' || backup === null) {
+          return false
+        }
+        const obj = backup as Record<string, unknown>
+        return (
+          'timestamp' in obj &&
+          'settings' in obj &&
+          typeof obj.settings === 'object'
+        )
+      })
     } catch (error) {
       logError('加载内嵌备份失败', error)
       return []
@@ -316,7 +332,7 @@ export class ConfigMigrationManager {
   /**
    * 检查值是否有效(非空、非undefined、非null)
    */
-  private isValidValue(value: any): boolean {
+  private isValidValue(value: unknown): boolean {
     if (value === undefined || value === null) {
       return false
     }

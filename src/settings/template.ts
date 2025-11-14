@@ -172,7 +172,7 @@ export const renderLabels = (labels?: LabelView[]) => {
   }))
 }
 
-export const renderItemContent = async (
+export const renderItemContent = (
   item: Item,
   template: string,
   highlightOrder: string,
@@ -186,7 +186,7 @@ export const renderItemContent = async (
   sectionSeparatorEnd: string,
   fileAttachment?: string,
   wechatMessageTemplate?: string,
-) => {
+): string => {
   // 🆕 企微消息特殊处理：直接使用简洁模板，不添加分隔符
   if (shouldMergeIntoSingleFile && isWeChatMessage(item)) {
     const dateSaved = formatDate(item.savedAt, dateSavedFormat)
@@ -344,7 +344,7 @@ export const renderItemContent = async (
         continue
       }
 
-      const value = (articleView as any)[articleVariable]
+      const value = (articleView as Record<string, unknown>)[articleVariable]
       if (value) {
         // if variable is in article, use it
         frontMatter[key] = value

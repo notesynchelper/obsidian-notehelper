@@ -23,32 +23,32 @@ export class Logger {
   /**
    * 调试日志 - 仅在开发环境显示
    */
-  static debug(...args: any[]) {
+  static debug(...args: unknown[]) {
     if (Logger.isDev) {
-      console.log(...args)
+      console.debug(...args)
     }
   }
 
   /**
    * 信息日志 - 仅在开发环境显示
    */
-  static info(...args: any[]) {
+  static info(...args: unknown[]) {
     if (Logger.isDev) {
-      console.info(...args)
+      console.debug(...args)
     }
   }
 
   /**
    * 警告日志 - 生产环境也会显示
    */
-  static warn(...args: any[]) {
+  static warn(...args: unknown[]) {
     console.warn(...args)
   }
 
   /**
    * 错误日志 - 生产环境也会显示
    */
-  static error(...args: any[]) {
+  static error(...args: unknown[]) {
     console.error(...args)
   }
 }

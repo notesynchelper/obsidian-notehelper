@@ -264,7 +264,7 @@ const fetchContentForItems = async (
       item.content = await Promise.race([
         downloadFromUrl(c.downloadUrl),
         new Promise<string>(
-          (_, reject) => setTimeout(() => reject('Timeout'), 600_000), // 10 minutes
+          (_, reject) => setTimeout(() => reject(new Error('Timeout')), 600_000), // 10 minutes
         ),
       ])
     }),
@@ -309,7 +309,7 @@ export const getItems = async (
         throw new Error('服务器响应格式错误：缺少edges字段')
       }
 
-      const items = response.edges.map((e: any) => e.node)
+      const items = response.edges.map((e) => e.node)
       const hasNextPage = response.pageInfo.hasNextPage
 
       log(`🔧 自定义服务器获取到 ${items.length} 篇文章`)

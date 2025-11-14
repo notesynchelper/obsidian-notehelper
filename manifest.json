@@ -1,9 +1,9 @@
 {
 	"id": "notehelper",
-	"name": "笔记同步助手",
+	"name": "NoteHelper",
 	"version": "2.6.1",
 	"minAppVersion": "0.15.0",
-	"description": "笔记同步助手 - 用于同步笔记和文章到 Obsidian 的插件",
+	"description": "Sync your notes and articles from WeChat to Obsidian | 笔记同步助手 - 用于同步笔记和文章到 Obsidian 的插件",
 	"author": "NoteHelper Team",
 	"authorUrl": "https://github.com/notehelper",
 	"isDesktopOnly": false
