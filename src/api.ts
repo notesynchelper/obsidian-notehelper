@@ -388,22 +388,6 @@ export const getItems = async (
   return [items, response.pageInfo.hasNextPage]
 }
 
-export const deleteItem = async (
-  endpoint: string,
-  apiKey: string,
-  articleId: string,
-) => {
-  const omnivore = new Omnivore({
-    authToken: apiKey,
-    baseUrl: baseUrl(endpoint),
-    timeoutMs: 10000, // 10 seconds
-  })
-
-  await omnivore.items.delete({ id: articleId })
-
-  return true
-}
-
 export const getArticleCount = async (
   endpoint: string,
   apiKey: string,

@@ -24,7 +24,7 @@ export class ImageLocalizationQueue {
 
     // 检查是否已在队列或已处理
     if (this.isInQueue(filePath) || this.processedFiles.has(filePath)) {
-      log(`任务已存在，跳过: ${filePath}`)
+      // log(`任务已存在，跳过: ${filePath}`)
       return
     }
 
@@ -68,6 +68,14 @@ export class ImageLocalizationQueue {
    */
   isInQueue(filePath: string): boolean {
     return this.queue.some((task) => task.file.path === filePath)
+  }
+
+  /**
+   * 检查文件是否已处理
+   * @param filePath 文件路径
+   */
+  isProcessed(filePath: string): boolean {
+    return this.processedFiles.has(filePath)
   }
 
   /**

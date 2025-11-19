@@ -200,7 +200,8 @@ export const findFrontMatterIndex = (
 
 export const parseFrontMatterFromContent = (content: string) => {
   // get front matter yaml from content
-  const frontMatter = content.match(/^---\n(.*?)\n---/s)
+  // 兼容Windows行尾符 \r\n
+  const frontMatter = content.match(/^---\r?\n(.*?)\r?\n---/s)
   if (!frontMatter) {
     return undefined
   }

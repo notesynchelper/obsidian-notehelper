@@ -59,7 +59,6 @@ export const DEFAULT_SETTINGS: OmnivoreSettings = {
   customQuery: '',
   template: DEFAULT_TEMPLATE,
   highlightOrder: 'LOCATION',
-  syncing: false,
   folder: '笔记同步助手/{{{date}}}',
   folderDateFormat: 'yyyy-MM-dd',
   endpoint: getEndpointUrl('https://obsidian.notebooksyncer.com/api/graphql'),
@@ -101,7 +100,6 @@ export interface OmnivoreSettings {
   customQuery: string
   highlightOrder: string
   template: string
-  syncing: boolean
   folder: string
   folderDateFormat: string
   endpoint: string

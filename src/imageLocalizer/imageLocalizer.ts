@@ -70,7 +70,7 @@ export class ImageLocalizer {
 
         // 检查是否为网络图片
         if (!isRemoteImage(url)) {
-          log(`跳过非网络图片: ${url}`)
+          // log(`跳过非网络图片: ${url}`)
           continue
         }
 
@@ -83,7 +83,7 @@ export class ImageLocalizer {
         })
       }
 
-      log(`检测到 ${images.length} 张网络图片: ${file.path}`)
+      // log(`检测到 ${images.length} 张网络图片: ${file.path}`)
       return images
     } catch (error) {
       logError(`检测图片失败: ${file.path}`, error)
@@ -256,9 +256,17 @@ export class ImageLocalizer {
    * @param file 笔记文件
    */
   async enqueueFile(file: TFile): Promise<void> {
+    const filePath = file.path
+
+    // 🆕 优先检查：避免重复检测已在队列或已处理的文件
+    // 这样可以避免在企微消息合并模式下，同一文件被多次检测产生大量重复日志
+    if (this.queue.isInQueue(filePath) || this.queue.isProcessed(filePath)) {
+      return
+    }
+
     const images = await this.detectRemoteImages(file)
     if (images.length === 0) {
-      log(`没有网络图片，跳过入队: ${file.path}`)
+      // log(`没有网络图片，跳过入队: ${file.path}`)
       return
     }
 

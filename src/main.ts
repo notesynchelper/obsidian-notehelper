@@ -11,7 +11,7 @@ import {
   TFile,
   TFolder,
 } from 'obsidian'
-import { deleteItem, getItems } from './api'
+import { getItems } from './api'
 import { log, logError, logWarn } from './logger'
 import { DEFAULT_SETTINGS, ImageMode, MergeMode, OmnivoreSettings } from './settings'
 import {
@@ -38,12 +38,46 @@ import {
 import { ConfigMigrationManager } from './configMigration'
 import { ImageLocalizer } from './imageLocalizer/imageLocalizer'
 import { ImageProcessOptions } from './imageLocalizer/types'
+import { SyncContext } from './sync/SyncContext'
+import { MergeProcessor } from './sync/MergeProcessor'
+import { FileProcessor } from './sync/FileProcessor'
 
 export default class OmnivorePlugin extends Plugin {
   settings: OmnivoreSettings
   private refreshTimeout: NodeJS.Timeout | null = null
+  private syncing: boolean = false
+  private debouncedSaveSettings: () => void
   configMigrationManager: ConfigMigrationManager
   imageLocalizer: ImageLocalizer | null = null
+
+  constructor(...args: ConstructorParameters<typeof Plugin>) {
+    super(...args)
+    this.debouncedSaveSettings = this.createDebouncedSave()
+  }
+
+  private createDebouncedSave(): () => void {
+    let timeout: NodeJS.Timeout | null = null
+    return async () => {
+      if (timeout) {
+        clearTimeout(timeout)
+      }
+      timeout = setTimeout(async () => {
+        log('💾 [防抖保存] 开始执行磁盘 I/O 操作...')
+        const startTime = Date.now()
+        await this.saveData(this.settings)
+        const duration = Date.now() - startTime
+        log(`💾 [防抖保存] saveData 完成，耗时: ${duration}ms`)
+        if (this.configMigrationManager) {
+          try {
+            await this.configMigrationManager.backupSettings(this.settings)
+            log('💾 [防抖保存] 备份完成')
+          } catch (error) {
+            log('配置备份时遇到问题，但设置已正常保存', error)
+          }
+        }
+      }, 60000) // 60秒（优化启动性能，减少磁盘I/O频率）
+    }
+  }
 
   async onload() {
     // 🚀 优化启动速度：延迟非关键操作
@@ -57,19 +91,19 @@ export default class OmnivorePlugin extends Plugin {
 
     // 🚀 延迟非关键操作到启动完成后再执行
     this.app.workspace.onLayoutReady(() => {
-      // 延迟1秒后执行非关键初始化
+      // 延迟3秒后执行非关键初始化（优化启动速度）
       setTimeout(() => {
         void this.initializeNonCriticalFeatures()
-      }, 1000)
+      }, 3000)
     })
   }
 
   /**
-   * 🚀 快速加载基本设置（包含配置迁移恢复逻辑）
+   * 🚀 快速加载基本设置（不执行配置迁移，避免阻塞启动）
    */
   private async loadEssentialSettings(): Promise<void> {
     try {
-      // 1. 先尝试加载主配置
+      // 1. 加载主配置
       const loadedData = await this.loadData()
       this.settings = Object.assign({}, DEFAULT_SETTINGS, loadedData)
 
@@ -80,54 +114,29 @@ export default class OmnivorePlugin extends Plugin {
         syncAt: this.settings.syncAt || '(空)'
       })
 
-      // 2. 检查是否需要配置迁移/恢复
-      const manifestVersion = this.manifest.version
+      // 2. 仅在配置完全丢失时执行紧急恢复
+      const hasApiKey = this.settings.apiKey && this.settings.apiKey !== DEFAULT_SETTINGS.apiKey
 
-      // 临时创建 ConfigMigrationManager 用于检查和恢复
-      const tempMigrationManager = new ConfigMigrationManager(this.app, this)
-
-      const needsMigration = tempMigrationManager.isConfigMigrationNeeded(this.settings, manifestVersion)
-      log('🔍 配置迁移检查', {
-        needsMigration,
-        currentApiKey: this.settings.apiKey ? '***' : '(空)',
-        currentVersion: this.settings.version,
-        manifestVersion
-      })
-
-      if (needsMigration) {
-        log('⚠️ 检测到需要配置迁移，尝试从备份恢复...')
-
-        // 按优先级尝试恢复：内嵌备份 → 外部备份 → 当前配置
+      if (!hasApiKey) {
+        log('⚠️ 检测到API Key丢失，执行紧急恢复...')
+        const tempMigrationManager = new ConfigMigrationManager(this.app, this)
         const restoredSettings = await tempMigrationManager.performMigration(
           this.settings,
-          manifestVersion
+          this.manifest.version
         )
-
-        log('📦 配置恢复结果', {
-          beforeApiKey: this.settings.apiKey ? '***' : '(空)',
-          afterApiKey: restoredSettings.apiKey ? '***' : '(空)',
-          beforeSyncAt: this.settings.syncAt || '(空)',
-          afterSyncAt: restoredSettings.syncAt || '(空)',
-          beforeVersion: this.settings.version,
-          afterVersion: restoredSettings.version
-        })
-
         this.settings = restoredSettings
-
-        // 立即保存恢复后的配置
         await this.saveData(this.settings)
-
-        log('✅ 配置迁移完成并已保存', {
-          version: this.settings.version,
-          hasApiKey: !!this.settings.apiKey,
-          hasSyncAt: !!this.settings.syncAt
-        })
+        log('✅ 紧急恢复完成')
       } else {
-        log('✅ 配置正常，无需迁移')
+        // ✅ 配置正常，只更新版本号（不触发完整迁移）
+        if (this.settings.version !== this.manifest.version) {
+          this.settings.version = this.manifest.version
+          // 延迟保存，不阻塞启动
+          setTimeout(() => this.saveSettings(), 3000)
+        }
       }
 
       // 3. 重置同步状态（轻量级操作）
-      this.settings.syncing = false
       this.settings.intervalId = 0
     } catch (error) {
       logError('❌ 加载基本设置失败:', error)
@@ -142,7 +151,7 @@ export default class OmnivorePlugin extends Plugin {
     // 注册命令和UI组件
     this.registerCommands()
     this.registerRibbonIcon()
-    this.addSettingTab(new OmnivoreSettingTab(this.app, this))
+    // ✅ 设置页面Tab延迟创建，移到initializeNonCriticalFeatures()
 
     // 启动时同步检查（轻量级）
     if (this.settings.syncOnStart) {
@@ -164,6 +173,9 @@ export default class OmnivorePlugin extends Plugin {
   private async initializeNonCriticalFeatures(): Promise<void> {
     try {
       log('🚀 初始化非关键功能...')
+
+      // 0. 延迟创建设置页面Tab（避免阻塞启动）
+      this.addSettingTab(new OmnivoreSettingTab(this.app, this))
 
       // 1. 延迟创建配置迁移管理器
       this.configMigrationManager = new ConfigMigrationManager(this.app, this)
@@ -312,16 +324,6 @@ export default class OmnivorePlugin extends Plugin {
     })
 
     this.addCommand({
-      id: 'deleteArticle',
-      name: 'Delete Current Article from Omnivore',
-      callback: async () => {
-        const { activeEditor } = this.app.workspace
-        const file = activeEditor?.file || null
-        await this.deleteCurrentItem(file)
-      },
-    })
-
-    this.addCommand({
       id: 'resync',
       name: 'Resync all articles',
       callback: async () => {
@@ -359,16 +361,26 @@ export default class OmnivorePlugin extends Plugin {
   }
 
   
-  async saveSettings() {
-    await this.saveData(this.settings)
-    // 同时备份配置到vault根目录，防止插件升级时丢失
-    if (this.configMigrationManager) {
-      try {
-        await this.configMigrationManager.backupSettings(this.settings)
-      } catch (error) {
-        // 备份失败不应该影响设置保存
-        log('配置备份时遇到问题，但设置已正常保存', error)
+  async saveSettings(immediate = false) {
+    if (immediate) {
+      log('💾 [立即保存] 开始执行磁盘 I/O 操作...')
+      const startTime = Date.now()
+      await this.saveData(this.settings)
+      const duration = Date.now() - startTime
+      log(`💾 [立即保存] saveData 完成，耗时: ${duration}ms`)
+      // 同时备份配置到vault根目录，防止插件升级时丢失
+      if (this.configMigrationManager) {
+        try {
+          await this.configMigrationManager.backupSettings(this.settings)
+          log('💾 [立即保存] 备份完成')
+        } catch (error) {
+          // 备份失败不应该影响设置保存
+          log('配置备份时遇到问题，但设置已正常保存', error)
+        }
       }
+    } else {
+      log('💾 [防抖保存] 调用防抖保存，将在30秒后执行...')
+      this.debouncedSaveSettings()
     }
   }
 
@@ -433,7 +445,6 @@ export default class OmnivorePlugin extends Plugin {
       apiKey,
       customQuery,
       highlightOrder,
-      syncing,
       template,
       folder,
       filename,
@@ -446,7 +457,7 @@ export default class OmnivorePlugin extends Plugin {
     // 根据合并模式确定是否启用单文件模式（用于兼容现有逻辑）
     const isSingleFile = mergeMode !== MergeMode.NONE
 
-    if (syncing) {
+    if (this.syncing) {
       new Notice('🐢 正在同步中...')
       return
     }
@@ -456,15 +467,15 @@ export default class OmnivorePlugin extends Plugin {
       return
     }
 
-    this.settings.syncing = true
-    await this.saveSettings()
+    // ✅ 优化：立即显示 UI 反馈，不等待 I/O
+    if (manualSync) {
+      new Notice('🚀 正在获取数据...')
+    }
+
+    this.syncing = true
 
     try {
       log(`笔记同步助手开始同步，自: '${syncAt}'`)
-
-      if (manualSync) {
-        new Notice('🚀 正在获取数据...')
-      }
 
       // pre-parse template
       log('🔧 开始解析前端模板')
@@ -485,7 +496,12 @@ export default class OmnivorePlugin extends Plugin {
       log('🔧 includeFileAttachment:', includeFileAttachment)
 
       const size = 15
-      const processedFiles: TFile[] = [] // 跟踪所有处理过的文件，用于后续图片处理
+
+      // 🆕 创建同步上下文（集中管理状态，自动去重）
+      const syncContext = new SyncContext(this.app, this.settings, this.imageLocalizer)
+      const mergeProcessor = new MergeProcessor(syncContext)
+      const fileProcessor = new FileProcessor(syncContext)
+
       log('🔧 准备开始循环获取数据')
       for (let after = 0; ; after += size) {
         log(`🔧 开始获取第 ${after/size + 1} 批数据`)
@@ -501,18 +517,22 @@ export default class OmnivorePlugin extends Plugin {
         )
 
         log(`🔧 成功获取数据，items数量: ${items.length}，hasNextPage: ${hasNextPage}`)
-        log(`🔧 准备开始处理文章`)
 
+        let processedCount = 0
         for (const item of items) {
-          log(`🔧 ========================================`)
-          log(`🔧 开始处理文章: ${item.title}`)
-          log(`🔧 文章ID: ${item.id}`)
+          // 每处理50篇文章输出一次进度
+          processedCount++
+          if (processedCount % 50 === 0) {
+            log(`🔧 已处理 ${processedCount}/${items.length} 篇文章`)
+          }
 
-          // 对于企微消息,从标题提取日期用于文件夹路径
-          let folderName: string
-          if (isSingleFile && item.title.startsWith('同步助手_')) {
-            const titleParts = item.title.split('_')
-            if (titleParts.length >= 2 && titleParts[1].length === 8) {
+          // 🆕 容错处理：单篇文章失败不中断整体同步
+          try {
+            // 对于企微消息,从标题提取日期用于文件夹路径
+            let folderName: string
+            if (isSingleFile && item.title.startsWith('同步助手_')) {
+              const titleParts = item.title.split('_')
+              if (titleParts.length >= 2 && titleParts[1].length === 8) {
               // 从标题提取日期: yyyyMMdd -> ISO格式，让 formatDate 根据 folderDateFormat 设置格式化
               const dateStr = titleParts[1]
               const year = dateStr.substring(0, 4)
@@ -539,19 +559,19 @@ export default class OmnivorePlugin extends Plugin {
               normalizePath(render(item, folder, this.settings.folderDateFormat)),
             )
           }
-          log(`🔧 文件夹名称: ${folderName}`)
+          // log(`🔧 文件夹名称: ${folderName}`)
           const omnivoreFolder =
             this.app.vault.getAbstractFileByPath(folderName)
           if (!(omnivoreFolder instanceof TFolder)) {
             try {
-              log(`🔧 创建文件夹: ${folderName}`)
+              // log(`🔧 创建文件夹: ${folderName}`)
               await this.app.vault.createFolder(folderName)
-              log(`🔧 文件夹创建成功: ${folderName}`)
+              // log(`🔧 文件夹创建成功: ${folderName}`)
             } catch (error) {
               // 处理文件夹已存在的情况
               if (error.toString().includes('Folder already exists') ||
                   error.toString().includes('already exists')) {
-                log(`🔧 文件夹已存在: ${folderName}`)
+                // log(`🔧 文件夹已存在: ${folderName}`)
                 // 简化处理：触发vault刷新事件
                 this.app.vault.trigger('changed')
               } else {
@@ -560,15 +580,15 @@ export default class OmnivorePlugin extends Plugin {
               }
             }
           } else {
-            log(`🔧 文件夹已存在: ${folderName}`)
+            // log(`🔧 文件夹已存在: ${folderName}`)
           }
-          log(`🔧 开始处理文件附件`)
+          // log(`🔧 开始处理文件附件`)
           const fileAttachment =
             item.pageType === 'FILE' && includeFileAttachment
               ? await this.downloadFileAsAttachment(item)
               : undefined
-          log(`🔧 文件附件处理完成`)
-          log(`🔧 开始渲染内容`)
+          // log(`🔧 文件附件处理完成`)
+          // log(`🔧 开始渲染内容`)
 
           // 判断是否需要合并到单文件：
           // - MergeMode.MESSAGES: 只合并企微消息
@@ -594,7 +614,7 @@ export default class OmnivorePlugin extends Plugin {
             fileAttachment,
             this.settings.wechatMessageTemplate,
           )
-          log(`🔧 内容渲染完成`)
+          // log(`🔧 内容渲染完成`)
           // use the custom filename
           let customFilename = replaceIllegalCharsFile(
             renderFilename(item, filename, this.settings.filenameDateFormat),
@@ -624,297 +644,34 @@ export default class OmnivorePlugin extends Plugin {
                 customFilename = replaceIllegalCharsFile(
                   renderFilename(tempItem, singleFileTemplate, this.settings.singleFileDateFormat),
                 )
-                log(`🔧 企微消息使用单文件模板: ${customFilename}`)
+                // log(`🔧 企微消息使用单文件模板: ${customFilename}`)
               }
             }
           }
 
           const pageName = `${folderName}/${customFilename}.md`
           const normalizedPath = normalizePath(pageName)
-          log(`🔧 准备创建/更新文件: ${normalizedPath}`)
+          // log(`🔧 准备创建/更新文件: ${normalizedPath}`)
           const omnivoreFile =
             this.app.vault.getAbstractFileByPath(normalizedPath)
-          if (omnivoreFile instanceof TFile) {
-            // file exists, so we might need to update it
-            // 判断是否需要合并：
-            // - MergeMode.MESSAGES: 只合并企微消息
-            // - MergeMode.ALL: 合并所有文章
-            const shouldMerge =
-              (mergeMode === MergeMode.MESSAGES && isWeChatMessage(item)) ||
-              mergeMode === MergeMode.ALL
 
-            if (shouldMerge) {
-              // sync into a single file
-              const existingContent = await this.app.vault.read(omnivoreFile)
-              // we need to remove the front matter
-              const contentWithoutFrontmatter =
-                removeFrontMatterFromContent(content)
-              const existingContentWithoutFrontmatter =
-                removeFrontMatterFromContent(existingContent)
-              // get front matter from content
-              // 新格式: {messages: [{id: ...}, {id: ...}]}
-              let parsedExistingFrontMatter = parseFrontMatterFromContent(existingContent)
-              let existingFrontMatter = parsedExistingFrontMatter?.messages || []
-              if (!Array.isArray(existingFrontMatter)) {
-                // 兼容旧格式：如果不是数组，可能是单个对象或旧的直接数组格式
-                existingFrontMatter = Array.isArray(parsedExistingFrontMatter)
-                  ? parsedExistingFrontMatter
-                  : [parsedExistingFrontMatter]
-              }
+          // 判断是否需要合并
+          const shouldMerge =
+            (mergeMode === MergeMode.MESSAGES && isWeChatMessage(item)) ||
+            mergeMode === MergeMode.ALL
 
-              const parsedNewFrontMatter = parseFrontMatterFromContent(content)
-              const newFrontMatter = parsedNewFrontMatter?.messages || []
-              if (
-                !newFrontMatter ||
-                !Array.isArray(newFrontMatter) ||
-                newFrontMatter.length === 0
-              ) {
-                throw new Error('Front matter does not exist in the template')
-              }
-
-              // 🆕 企微消息特殊处理：简洁模式
-              if (isWeChatMessage(item)) {
-                log('🔧 检测到企微消息，使用简洁模式')
-
-                // 检查消息是否已存在
-                const frontMatterIdx = findFrontMatterIndex(existingFrontMatter, item.id)
-
-                if (frontMatterIdx >= 0) {
-                  // 消息已存在，只更新Front Matter，不修改内容（避免重复）
-                  existingFrontMatter[frontMatterIdx] = newFrontMatter[0]
-                  log(`🔧 消息已存在，跳过内容更新: ${item.id}`)
-
-                  // 只更新Front Matter - 包裹在messages对象中
-                  const newFrontMatterStr = `---\n${stringifyYaml({messages: existingFrontMatter})}---`
-                  await this.app.vault.modify(
-                    omnivoreFile,
-                    `${newFrontMatterStr}\n\n${existingContentWithoutFrontmatter}`,
-                  )
-
-                  // 将更新后的文件加入图片本地化队列
-                  await this.enqueueFileForImageLocalization(omnivoreFile)
-                  processedFiles.push(omnivoreFile)
-                } else {
-                  // 新消息，追加到文件末尾（按时间顺序从上到下）
-                  existingFrontMatter.push(newFrontMatter[0])
-                  log(`🔧 新增消息ID: ${item.id}`)
-
-                  const simpleContent = renderWeChatMessageSimple(item, this.settings.dateSavedFormat, this.settings.wechatMessageTemplate)
-
-                  // 🔧 重建整个文件内容：按时间升序排列所有消息
-                  interface MessageWithTime {
-                    content: string
-                    timestamp: string
-                  }
-
-                  const allMessages: MessageWithTime[] = []
-
-                  // 从现有内容中提取各条消息（按分隔符"---\n## 📅"切分）
-                  const existingMessages = existingContentWithoutFrontmatter.split(/(?=---\n## 📅)/).filter(s => s.trim())
-
-                  // 提取现有消息的时间戳
-                  for (const msg of existingMessages) {
-                    // 匹配时间戳: ## 📅 yyyy-MM-dd HH:mm:ss
-                    const timeMatch = msg.match(/## 📅 ([\d-:\s]+)/)
-                    if (timeMatch) {
-                      allMessages.push({
-                        content: msg,
-                        timestamp: timeMatch[1].trim()
-                      })
-                    }
-                  }
-
-                  // 添加新消息
-                  const newTimeMatch = simpleContent.match(/## 📅 ([\d-:\s]+)/)
-                  if (newTimeMatch) {
-                    allMessages.push({
-                      content: simpleContent,
-                      timestamp: newTimeMatch[1].trim()
-                    })
-                  }
-
-                  // 按时间戳升序排序（早→晚）
-                  allMessages.sort((a, b) => a.timestamp.localeCompare(b.timestamp))
-
-                  // 重建内容
-                  const rebuiltContent = allMessages.map(m => m.content).join('\n')
-
-                  // 包裹在messages对象中
-                  const newFrontMatterStr = `---\n${stringifyYaml({messages: existingFrontMatter})}---`
-
-                  await this.app.vault.modify(
-                    omnivoreFile,
-                    `${newFrontMatterStr}\n\n${rebuiltContent}`,
-                  )
-
-                  // 将更新后的文件加入图片本地化队列
-                  await this.enqueueFileForImageLocalization(omnivoreFile)
-                  processedFiles.push(omnivoreFile)
-                }
-
-                log('🔧 企微消息处理完成')
-                continue
-              }
-
-              // 普通文章的合并逻辑
-              let newContentWithoutFrontMatter: string
-
-              // find the front matter with the same id
-              const frontMatterIdx = findFrontMatterIndex(
-                existingFrontMatter,
-                item.id,
-              )
-              if (frontMatterIdx >= 0) {
-                // this article already exists in the file
-                // we need to locate the article which is wrapped in comments
-                // and replace the content
-                // 如果用户配置了分隔符，则查找并替换带分隔符的内容
-                if (this.settings.sectionSeparator && this.settings.sectionSeparatorEnd) {
-                  // 构建articleView以渲染分隔符模板(与template.ts保持一致)
-                  const dateSaved = formatDate(item.savedAt, this.settings.dateSavedFormat)
-                  const articleView = {
-                    id: item.id,
-                    title: item.title,
-                    dateSaved,
-                    // 可以根据需要添加更多变量
-                  }
-                  const renderedStart = Mustache.render(this.settings.sectionSeparator, articleView)
-                  const renderedEnd = Mustache.render(this.settings.sectionSeparatorEnd, articleView)
-                  // 转义正则表达式特殊字符
-                  const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-                  const existingContentRegex = new RegExp(
-                    `${escapeRegex(renderedStart)}.*?${escapeRegex(renderedEnd)}`,
-                    's',
-                  )
-                  newContentWithoutFrontMatter =
-                    existingContentWithoutFrontmatter.replace(
-                      existingContentRegex,
-                      contentWithoutFrontmatter,
-                    )
-                } else {
-                  // 如果没有配置分隔符，直接追加内容
-                  newContentWithoutFrontMatter = `${contentWithoutFrontmatter}\n\n${existingContentWithoutFrontmatter}`
-                }
-
-                existingFrontMatter[frontMatterIdx] = newFrontMatter[0]
-              } else {
-                // this article doesn't exist in the file
-                // prepend the article
-                newContentWithoutFrontMatter = `${contentWithoutFrontmatter}\n\n${existingContentWithoutFrontmatter}`
-                // prepend new front matter which is an array
-                existingFrontMatter.unshift(newFrontMatter[0])
-              }
-
-              // 包裹在messages对象中
-              const newFrontMatterStr = `---\n${stringifyYaml({
-                messages: existingFrontMatter,
-              })}---`
-
-              await this.app.vault.modify(
-                omnivoreFile,
-                `${newFrontMatterStr}\n\n${newContentWithoutFrontMatter}`,
-              )
-
-              // 将更新后的文件加入图片本地化队列
-              await this.enqueueFileForImageLocalization(omnivoreFile)
-              processedFiles.push(omnivoreFile)
-              continue
-            }
-            // sync into separate files - 直接读取文件内容而不使用processFrontMatter
-            log(`🔧 文件已存在，读取内容检查ID`)
-            const existingContent = await this.app.vault.read(omnivoreFile)
-            // 从Front Matter中提取id字段: ---\nid: xxx\n---
-            const idMatch = existingContent.match(/^---\r?\n(?:[\s\S]*?)^id:\s*(.+?)\s*$/m)
-            const existingId = idMatch ? idMatch[1].trim() : null
-
-            log(`🔧 现有文件ID: ${existingId}, 当前文章ID: ${item.id}`)
-
-            if (existingId && existingId !== item.id) {
-              // this article has the same name but different id
-              // find an available filename with incrementing number suffix
-              log(`🔧 ID不同，需要创建新文件`)
-              let suffix = 2
-              let newPageName = `${folderName}/${customFilename} ${suffix}.md`
-              let newNormalizedPath = normalizePath(newPageName)
-              let newOmnivoreFile = this.app.vault.getAbstractFileByPath(newNormalizedPath)
-
-              // keep incrementing suffix until we find either:
-              // 1. a file with the same id (update it)
-              // 2. a non-existent filename (create new file)
-              while (newOmnivoreFile instanceof TFile) {
-                log(`🔧 检查文件: ${newNormalizedPath}`)
-                // 直接读取文件内容来提取ID
-                const checkContent = await this.app.vault.read(newOmnivoreFile)
-                const checkIdMatch = checkContent.match(/^---\r?\n(?:[\s\S]*?)^id:\s*(.+?)\s*$/m)
-                const checkId = checkIdMatch ? checkIdMatch[1].trim() : null
-
-                if (checkId === item.id) {
-                  // found the file with same id, update it
-                  log(`🔧 找到相同ID的文件，更新: ${newNormalizedPath}`)
-                  if (checkContent !== content) {
-                    await this.app.vault.modify(newOmnivoreFile, content)
-                    log(`🔧 文件更新完成: ${newNormalizedPath}`)
-                  }
-                  // 加入图片本地化队列
-                  await this.enqueueFileForImageLocalization(newOmnivoreFile)
-                  processedFiles.push(newOmnivoreFile)
-                  continue  // 跳过后续处理，继续下一篇文章
-                }
-                // try next number
-                suffix++
-                newPageName = `${folderName}/${customFilename} ${suffix}.md`
-                newNormalizedPath = normalizePath(newPageName)
-                newOmnivoreFile = this.app.vault.getAbstractFileByPath(newNormalizedPath)
-              }
-
-              // found available filename, create new file
-              log(`🔧 找到可用文件名（编号 ${suffix}）: ${newNormalizedPath}`)
-              const createdFile = await this.app.vault.create(newNormalizedPath, content)
-              log(`🔧 文件创建成功: ${newNormalizedPath}`)
-
-              // 将新创建的文件加入图片本地化队列
-              await this.enqueueFileForImageLocalization(createdFile)
-              processedFiles.push(createdFile)
-              continue
-            }
-
-            // a file with the same id already exists, update it
-            log(`🔧 文件ID相同，检查是否需要更新`)
-            if (existingContent !== content) {
-              log(`🔧 内容有变化，更新文件: ${omnivoreFile.path}`)
-              await this.app.vault.modify(omnivoreFile, content)
-            } else {
-              log(`🔧 内容无变化，跳过更新`)
-            }
-            // 加入图片本地化队列
-            await this.enqueueFileForImageLocalization(omnivoreFile)
-            processedFiles.push(omnivoreFile)
-            continue
+          // 🆕 使用处理器处理（自动记录成功和去重）
+          if (omnivoreFile instanceof TFile && shouldMerge) {
+            // 合并模式：使用MergeProcessor
+            await mergeProcessor.process(item, omnivoreFile, content)
+          } else {
+            // 单文件模式：使用FileProcessor
+            await fileProcessor.process(item, normalizedPath, content, folderName, customFilename)
           }
-          // file doesn't exist, so we need to create it
-          try {
-            log(`🔧 创建新文件: ${normalizedPath}`)
-            const createdFile = await this.app.vault.create(normalizedPath, content)
-            log(`🔧 文件创建成功: ${normalizedPath}`)
-
-            // 将新创建的文件加入图片本地化队列
-            await this.enqueueFileForImageLocalization(createdFile)
-            processedFiles.push(createdFile)
           } catch (error) {
-            if (error.toString().includes('File already exists')) {
-              log(`🔧 文件已存在，跳过创建: ${normalizedPath}`)
-              // 文件已存在，仍然尝试加入队列处理图片
-              const existingFile = this.app.vault.getAbstractFileByPath(normalizedPath)
-              if (existingFile instanceof TFile) {
-                await this.enqueueFileForImageLocalization(existingFile)
-                processedFiles.push(existingFile)
-              }
-            } else {
-              logError(`🔧 文件创建失败: ${normalizedPath}`, error)
-              new Notice(`文件创建失败: ${normalizedPath}`, 3000)
-            }
+            logError(`❌ 处理文章失败，跳过: ${item.title}`, error)
+            // 不中断循环，继续处理下一篇
           }
-          log(`🔧 文章处理完成: ${item.title}`)
         }
 
         log(`🔧 批次处理完成，处理了 ${items.length} 篇文章`)
@@ -924,13 +681,21 @@ export default class OmnivorePlugin extends Plugin {
         }
       }
 
-      // 所有批次处理完成后，更新同步时间
-      this.settings.syncAt = DateTime.local().toFormat(DATE_FORMAT)
-      await this.saveSettings()
+      // 🆕 所有批次处理完成后，根据成功数量决定是否更新同步时间
+      const successCount = syncContext.successTracker.getCount()
+      if (successCount > 0) {
+        this.settings.syncAt = DateTime.local().toFormat(DATE_FORMAT)
+        await this.saveSettings()
 
-      log('笔记同步助手同步完成', this.settings.syncAt)
-      if (manualSync) {
-        new Notice('🎉 同步完成')
+        log(`✅ 同步完成！成功处理 ${successCount} 篇文章，syncAt: ${this.settings.syncAt}`)
+        if (manualSync) {
+          new Notice(`🎉 同步完成！成功处理 ${successCount} 篇文章`)
+        }
+      } else {
+        log('⚠️ 没有成功处理任何文章，不更新同步时间')
+        if (manualSync) {
+          new Notice('⚠️ 同步完成，但没有成功处理任何文章')
+        }
       }
 
       // 刷新文件浏览器以显示新创建的文件和文件夹
@@ -951,9 +716,10 @@ export default class OmnivorePlugin extends Plugin {
       } else if (this.settings.imageMode === ImageMode.DISABLED) {
         log('🖼️ 开始异步注释图片...')
         // 使用 setTimeout 确保不阻塞主流程
+        const processedFilesArray = syncContext.getProcessedFilesArray()
         setTimeout(async () => {
           try {
-            await this.commentOutImages(processedFiles)
+            await this.commentOutImages(processedFilesArray)
             log('🖼️ 图片注释处理完成')
           } catch (error) {
             logError('图片注释处理失败:', error)
@@ -964,8 +730,7 @@ export default class OmnivorePlugin extends Plugin {
       new Notice('获取数据失败')
       logError(e)
     } finally {
-      this.settings.syncing = false
-      await this.saveSettings()
+      this.syncing = false
 
       // 确保在任何情况下都刷新文件浏览器
       try {
@@ -976,34 +741,7 @@ export default class OmnivorePlugin extends Plugin {
     }
   }
 
-  private async deleteCurrentItem(file: TFile | null) {
-    if (!file) {
-      return
-    }
-    //use frontmatter id to find the file
-    const itemId = this.app.metadataCache.getFileCache(file)?.frontmatter?.id
-    if (!itemId) {
-      new Notice('删除文章失败：文章 ID 未找到')
-    }
 
-    try {
-      const isDeleted = await deleteItem(
-        this.settings.endpoint,
-        this.settings.apiKey,
-        itemId,
-      )
-      if (!isDeleted) {
-        new Notice('删除文章失败')
-      }
-    } catch (e) {
-      new Notice('Failed to delete article in Omnivore')
-      logError(e)
-    }
-
-    await this.app.vault.trash(file, true)
-  }
-
-  
 
   /**
    * 简化的文件浏览器刷新方法
