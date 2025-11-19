@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-notehelper",
-	"version": "2.6.3",
+	"version": "2.6.4",
 	"description": "笔记同步助手 - 用于同步笔记和文章到 Obsidian 的插件",
 	"main": "main.js",
 	"scripts": {
