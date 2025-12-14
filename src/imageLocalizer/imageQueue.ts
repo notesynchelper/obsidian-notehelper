@@ -3,7 +3,6 @@
  * 用于管理图片本地化任务，避免重复处理
  */
 
-import { TFile } from 'obsidian'
 import { LocalizeTask } from './types'
 import { log } from '../logger'
 

@@ -14,6 +14,7 @@ export const REPLACEMENT_CHAR = '-'
 // credit: https://github.com/sindresorhus/filename-reserved-regex
 // eslint-disable-next-line no-control-regex
 export const ILLEGAL_CHAR_REGEX_FILE = /[<>:"/\\|?*\u0000-\u001F]/g
+// eslint-disable-next-line no-control-regex
 export const ILLEGAL_CHAR_REGEX_FOLDER = /[<>:"\\|?*\u0000-\u001F]/g
 
 export interface HighlightPoint {
@@ -164,7 +165,7 @@ const wrapHighlightMarkup = (
     }
   }
 
-  return quote.replaceAll(/(>)?(.+)$/gm, (_, g1, g2) => {
+  return quote.replaceAll(/(>)?(.+)$/gm, (_: string, g1: string | undefined, g2: string) => {
     return (g1 ?? '') + markupRender(g2)
   })
 }
@@ -191,21 +192,24 @@ export const formatHighlightQuote = (
 }
 
 export const findFrontMatterIndex = (
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   frontMatter: any[],
   id: string,
 ): number => {
   // find index of front matter with matching id
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
   return frontMatter.findIndex((fm) => fm.id == id)
 }
 
-export const parseFrontMatterFromContent = (content: string) => {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const parseFrontMatterFromContent = (content: string): any => {
   // get front matter yaml from content
   // 兼容Windows行尾符 \r\n
   const frontMatter = content.match(/^---\r?\n(.*?)\r?\n---/s)
   if (!frontMatter) {
     return undefined
   }
-  // parse yaml
+  // parse yaml - 返回any以保持与调用方的兼容性
   return parseYaml(frontMatter[1])
 }
 

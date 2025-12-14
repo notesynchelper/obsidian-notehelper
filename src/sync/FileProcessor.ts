@@ -105,7 +105,8 @@ export class FileProcessor {
 				newOmnivoreFile = this.context.app.vault.getAbstractFileByPath(newNormalizedPath)
 			} catch (error) {
 				// ✅ 添加错误处理：文件可能被删除
-				if (error.toString().includes('ENOENT') || error.toString().includes('no such file')) {
+				const errorMsg = error instanceof Error ? error.message : String(error)
+				if (errorMsg.includes('ENOENT') || errorMsg.includes('no such file')) {
 					// 文件在检查过程中被删除，尝试下一个编号
 					suffix++
 					newPageName = `${folderName}/${customFilename} ${suffix}.md`
@@ -147,7 +148,8 @@ export class FileProcessor {
 			await this.context.enqueueFileForImageLocalization(createdFile)
 			this.context.addProcessedFile(createdFile)
 		} catch (error) {
-			if (error.toString().includes('File already exists')) {
+			const errorMsg = error instanceof Error ? error.message : String(error)
+			if (errorMsg.includes('File already exists')) {
 				// 文件已存在（并发创建），尝试获取并处理
 				const existingFile = this.context.app.vault.getAbstractFileByPath(normalizedPath)
 				if (existingFile instanceof TFile) {

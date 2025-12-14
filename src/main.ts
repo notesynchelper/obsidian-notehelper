@@ -1,18 +1,16 @@
 import { Item } from '@omnivore-app/api'
 import { DateTime } from 'luxon'
-import Mustache from 'mustache'
 import {
   addIcon,
   normalizePath,
   Notice,
   Plugin,
   requestUrl,
-  stringifyYaml,
   TFile,
   TFolder,
 } from 'obsidian'
 import { getItems } from './api'
-import { log, logError, logWarn } from './logger'
+import { log, logError } from './logger'
 import { DEFAULT_SETTINGS, ImageMode, MergeMode, OmnivoreSettings } from './settings'
 import {
   preParseTemplate,
@@ -20,17 +18,12 @@ import {
   renderFilename,
   renderItemContent,
   isWeChatMessage,
-  renderWeChatMessageSimple,
 } from './settings/template'
 import { OmnivoreSettingTab } from './settingsTab'
 import {
   DATE_FORMAT,
-  findFrontMatterIndex,
-  formatDate,
   getQueryFromFilter,
   parseDateTime,
-  parseFrontMatterFromContent,
-  removeFrontMatterFromContent,
   replaceIllegalCharsFile,
   replaceIllegalCharsFolder,
   setOrUpdateHighlightColors,
@@ -44,7 +37,7 @@ import { FileProcessor } from './sync/FileProcessor'
 
 export default class OmnivorePlugin extends Plugin {
   settings: OmnivoreSettings
-  private refreshTimeout: NodeJS.Timeout | null = null
+  private refreshTimeout: ReturnType<typeof setTimeout> | null = null
   private syncing: boolean = false
   private debouncedSaveSettings: () => void
   configMigrationManager: ConfigMigrationManager
@@ -56,25 +49,25 @@ export default class OmnivorePlugin extends Plugin {
   }
 
   private createDebouncedSave(): () => void {
-    let timeout: NodeJS.Timeout | null = null
-    return async () => {
+    let timeout: ReturnType<typeof setTimeout> | null = null
+    return () => {
       if (timeout) {
         clearTimeout(timeout)
       }
-      timeout = setTimeout(async () => {
+      timeout = setTimeout(() => {
         log('💾 [防抖保存] 开始执行磁盘 I/O 操作...')
         const startTime = Date.now()
-        await this.saveData(this.settings)
-        const duration = Date.now() - startTime
-        log(`💾 [防抖保存] saveData 完成，耗时: ${duration}ms`)
-        if (this.configMigrationManager) {
-          try {
-            await this.configMigrationManager.backupSettings(this.settings)
-            log('💾 [防抖保存] 备份完成')
-          } catch (error) {
-            log('配置备份时遇到问题，但设置已正常保存', error)
+        const settingsToSave = { ...this.settings }
+        delete (settingsToSave as Record<string, unknown>)['config-backup']
+        void this.saveData(settingsToSave).then(() => {
+          const duration = Date.now() - startTime
+          log(`💾 [防抖保存] saveData 完成，耗时: ${duration}ms`)
+          if (this.configMigrationManager) {
+            void this.configMigrationManager.backupSettings(settingsToSave as OmnivoreSettings)
+              .then(() => log('💾 [防抖保存] 外部备份完成'))
+              .catch((error: unknown) => log('外部备份时遇到问题，但设置已正常保存', error))
           }
-        }
+        })
       }, 60000) // 60秒（优化启动性能，减少磁盘I/O频率）
     }
   }
@@ -104,11 +97,61 @@ export default class OmnivorePlugin extends Plugin {
   private async loadEssentialSettings(): Promise<void> {
     try {
       // 1. 加载主配置
-      const loadedData = await this.loadData()
-      this.settings = Object.assign({}, DEFAULT_SETTINGS, loadedData)
+      const loadedData = await this.loadData() as Partial<OmnivoreSettings> | null
+
+      // 🆕 检测数据是否损坏（文件过大超过 100KB）
+      const dataSize = loadedData ? JSON.stringify(loadedData).length : 0
+      const MAX_ALLOWED_SIZE = 100 * 1024  // 100KB
+      const isCorrupted = dataSize > MAX_ALLOWED_SIZE
+
+      if (isCorrupted) {
+        log(`⚠️ 检测到损坏的配置文件 (${(dataSize / 1024 / 1024).toFixed(2)} MB > 100KB)，尝试从外部备份恢复...`)
+
+        // 🔧 改进：先尝试从外部备份恢复关键配置，而不是直接清空
+        try {
+          // 从损坏的数据中提取核心配置（不包括备份字段）
+          const coreSettings: Partial<OmnivoreSettings> = {}
+          const keysToPreserve = ['apiKey', 'syncAt', 'folder', 'filename', 'customQuery', 'endpoint']
+          for (const key of keysToPreserve) {
+            if (loadedData && key in loadedData) {
+              (coreSettings as Record<string, unknown>)[key] = (loadedData as Record<string, unknown>)[key]
+            }
+          }
+
+          // 合并默认配置和提取的核心配置
+          this.settings = { ...DEFAULT_SETTINGS, ...coreSettings }
+          // 删除可能残留的备份字段
+          delete (this.settings as unknown as Record<string, unknown>)['config-backup']
+
+          // 保存清理后的配置（不包含备份，备份会在后续由 configMigrationManager 重新生成）
+          const cleanSettings = { ...this.settings }
+          delete (cleanSettings as unknown as Record<string, unknown>)['config-backup']
+          await this.saveData(cleanSettings)
+
+          new Notice(
+            `检测到配置文件异常，已自动修复。您的核心配置已保留。`,
+            8000
+          )
+          log('✅ 配置文件修复完成，核心配置已保留')
+        } catch (error) {
+          logError('修复损坏的配置文件失败，使用默认配置:', error)
+          this.settings = { ...DEFAULT_SETTINGS }
+          await this.saveData({})
+          new Notice(
+            `配置文件修复失败，已使用默认配置。请重新配置 API key。`,
+            10000
+          )
+        }
+      } else {
+        this.settings = Object.assign({}, DEFAULT_SETTINGS, loadedData ?? {})
+        // 🔧 关键修复：确保 this.settings 不包含 config-backup，防止递归嵌套导致文件膨胀
+        delete (this.settings as unknown as Record<string, unknown>)['config-backup']
+      }
 
       log('📖 加载主配置完成', {
         hasData: !!loadedData,
+        dataSize: `${(dataSize / 1024).toFixed(2)} KB`,
+        isCorrupted: isCorrupted,
         apiKey: this.settings.apiKey ? '***' : '(空)',
         version: this.settings.version,
         syncAt: this.settings.syncAt || '(空)'
@@ -132,7 +175,7 @@ export default class OmnivorePlugin extends Plugin {
         if (this.settings.version !== this.manifest.version) {
           this.settings.version = this.manifest.version
           // 延迟保存，不阻塞启动
-          setTimeout(() => this.saveSettings(), 3000)
+          setTimeout(() => { void this.saveSettings() }, 3000)
         }
       }
 
@@ -157,10 +200,11 @@ export default class OmnivorePlugin extends Plugin {
     if (this.settings.syncOnStart) {
       this.app.workspace.onLayoutReady(() => {
         // 延迟2秒执行同步，确保启动完成
-        setTimeout(async () => {
+        setTimeout(() => {
           if (this.settings.apiKey) {
-            await this.fetchOmnivore(false)
-            this.refreshFileExplorer()
+            void this.fetchOmnivore(false).then(() => {
+              this.refreshFileExplorer()
+            })
           }
         }, 2000)
       })
@@ -293,14 +337,31 @@ export default class OmnivorePlugin extends Plugin {
       }
 
       // 迁移旧的图片本地化布尔值设置到新的枚举模式
-      const settingsAny = this.settings as any
-      if (typeof settingsAny.enableImageLocalization === 'boolean') {
+      // 旧版配置可能包含 enableImageLocalization 布尔字段，需要迁移到新的 imageMode 枚举
+      const settingsWithLegacy = this.settings as OmnivoreSettings & { enableImageLocalization?: boolean }
+      if (typeof settingsWithLegacy.enableImageLocalization === 'boolean') {
         log('检测到旧版图片设置，开始迁移...')
-        const oldValue = settingsAny.enableImageLocalization
+        const oldValue = settingsWithLegacy.enableImageLocalization
         this.settings.imageMode = oldValue ? ImageMode.LOCAL : ImageMode.REMOTE
-        delete settingsAny.enableImageLocalization
+        delete settingsWithLegacy.enableImageLocalization
         needsSave = true
         log(`图片设置已迁移: ${oldValue} -> ${this.settings.imageMode}`)
+      }
+
+      // 迁移频率单位：分钟 → 秒（简化迁移，失败时重置为0）
+      try {
+        // 判断条件：frequency 在合理范围内（1-899分钟）
+        if (this.settings.frequency > 0 && this.settings.frequency < 900) {
+          log('检测到疑似旧版频率配置，开始迁移...')
+          const oldFrequencyInMinutes = this.settings.frequency
+          this.settings.frequency = oldFrequencyInMinutes * 60
+          needsSave = true
+          log(`频率单位已迁移: ${oldFrequencyInMinutes} 分钟 -> ${this.settings.frequency} 秒`)
+        }
+      } catch (error) {
+        logError('频率迁移失败，重置为手动同步', error)
+        this.settings.frequency = 0  // 失败时重置为手动同步
+        needsSave = true
       }
 
       if (needsSave) {
@@ -362,20 +423,22 @@ export default class OmnivorePlugin extends Plugin {
 
   
   async saveSettings(immediate = false) {
+    const settingsToSave = { ...this.settings }
+    delete (settingsToSave as Record<string, unknown>)['config-backup']
+
     if (immediate) {
       log('💾 [立即保存] 开始执行磁盘 I/O 操作...')
       const startTime = Date.now()
-      await this.saveData(this.settings)
+      await this.saveData(settingsToSave)
       const duration = Date.now() - startTime
       log(`💾 [立即保存] saveData 完成，耗时: ${duration}ms`)
-      // 同时备份配置到vault根目录，防止插件升级时丢失
+      // 同时备份配置到外部目录，防止插件升级时丢失
       if (this.configMigrationManager) {
         try {
-          await this.configMigrationManager.backupSettings(this.settings)
-          log('💾 [立即保存] 备份完成')
+          await this.configMigrationManager.backupSettings(settingsToSave as OmnivoreSettings)
+          log('💾 [立即保存] 外部备份完成')
         } catch (error) {
-          // 备份失败不应该影响设置保存
-          log('配置备份时遇到问题，但设置已正常保存', error)
+          log('外部备份时遇到问题，但设置已正常保存', error)
         }
       }
     } else {
@@ -398,7 +461,7 @@ export default class OmnivorePlugin extends Plugin {
         () => {
           void this.fetchOmnivore(false)
         },
-        frequency * 60 * 1000,
+        frequency * 1000,
       )
 
       // save new interval id (no need to persist to disk, just keep in memory)
@@ -567,10 +630,11 @@ export default class OmnivorePlugin extends Plugin {
               // log(`🔧 创建文件夹: ${folderName}`)
               await this.app.vault.createFolder(folderName)
               // log(`🔧 文件夹创建成功: ${folderName}`)
-            } catch (error) {
+            } catch (error: unknown) {
               // 处理文件夹已存在的情况
-              if (error.toString().includes('Folder already exists') ||
-                  error.toString().includes('already exists')) {
+              const errorMessage = error instanceof Error ? error.message : String(error)
+              if (errorMessage.includes('Folder already exists') ||
+                  errorMessage.includes('already exists')) {
                 // log(`🔧 文件夹已存在: ${folderName}`)
                 // 简化处理：触发vault刷新事件
                 this.app.vault.trigger('changed')
@@ -705,25 +769,19 @@ export default class OmnivorePlugin extends Plugin {
       if (this.settings.imageMode === ImageMode.LOCAL && this.imageLocalizer) {
         log('🖼️ 开始异步处理图片本地化...')
         // 使用 setTimeout 确保不阻塞主流程
-        setTimeout(async () => {
-          try {
-            await this.imageLocalizer?.processQueue()
-            log('🖼️ 图片本地化队列处理完成')
-          } catch (error) {
-            logError('图片本地化处理失败:', error)
-          }
+        setTimeout(() => {
+          void this.imageLocalizer?.processQueue()
+            .then(() => log('🖼️ 图片本地化队列处理完成'))
+            .catch((error: unknown) => logError('图片本地化处理失败:', error))
         }, 500)
       } else if (this.settings.imageMode === ImageMode.DISABLED) {
         log('🖼️ 开始异步注释图片...')
         // 使用 setTimeout 确保不阻塞主流程
         const processedFilesArray = syncContext.getProcessedFilesArray()
-        setTimeout(async () => {
-          try {
-            await this.commentOutImages(processedFilesArray)
-            log('🖼️ 图片注释处理完成')
-          } catch (error) {
-            logError('图片注释处理失败:', error)
-          }
+        setTimeout(() => {
+          void this.commentOutImages(processedFilesArray)
+            .then(() => log('🖼️ 图片注释处理完成'))
+            .catch((error: unknown) => logError('图片注释处理失败:', error))
         }, 500)
       }
     } catch (e) {

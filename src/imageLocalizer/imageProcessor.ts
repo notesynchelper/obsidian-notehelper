@@ -101,7 +101,7 @@ export function detectImageFormat(data: ArrayBuffer): string {
     if (text.includes('<svg') || text.includes('<?xml')) {
       return 'svg'
     }
-  } catch (e) {
+  } catch {
     // 忽略解码错误
   }
 
@@ -147,23 +147,27 @@ export async function convertPngToJpeg(
 
           // 转换为 JPEG Blob
           canvas.toBlob(
-            async (jpegBlob) => {
+            (jpegBlob) => {
               if (!jpegBlob) {
                 reject(new Error('转换 JPEG 失败'))
                 return
               }
 
               // 转换为 ArrayBuffer
-              const arrayBuffer = await jpegBlob.arrayBuffer()
-              URL.revokeObjectURL(url)
-              resolve(arrayBuffer)
+              jpegBlob.arrayBuffer().then((arrayBuffer) => {
+                URL.revokeObjectURL(url)
+                resolve(arrayBuffer)
+              }).catch((err: unknown) => {
+                URL.revokeObjectURL(url)
+                reject(err instanceof Error ? err : new Error(String(err)))
+              })
             },
             'image/jpeg',
             quality
           )
-        } catch (error) {
+        } catch (error: unknown) {
           URL.revokeObjectURL(url)
-          reject(error)
+          reject(error instanceof Error ? error : new Error(String(error)))
         }
       }
 
@@ -173,8 +177,8 @@ export async function convertPngToJpeg(
       }
 
       img.src = url
-    } catch (error) {
-      reject(error)
+    } catch (error: unknown) {
+      reject(error instanceof Error ? error : new Error(String(error)))
     }
   })
 }
@@ -236,7 +240,7 @@ export function extractFilenameFromUrl(url: string): string {
 
     // 移除查询参数
     return filename.split('?')[0] || 'image'
-  } catch (error) {
+  } catch {
     return 'image'
   }
 }

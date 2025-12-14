@@ -1,3 +1,4 @@
+/* eslint-env node, browser */
 /**
  * 日志管理器
  * 根据构建配置控制日志输出
@@ -54,7 +55,7 @@ export class Logger {
 }
 
 // 为了方便使用，可以导出简化的函数
-export const log = Logger.debug
-export const logInfo = Logger.info
-export const logWarn = Logger.warn
-export const logError = Logger.error
+export const log = (...args: unknown[]) => Logger.debug(...args)
+export const logInfo = (...args: unknown[]) => Logger.info(...args)
+export const logWarn = (...args: unknown[]) => Logger.warn(...args)
+export const logError = (...args: unknown[]) => Logger.error(...args)

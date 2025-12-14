@@ -6,13 +6,32 @@ import { log, logError } from '../logger'
 import {
 	parseFrontMatterFromContent,
 	removeFrontMatterFromContent,
-	findFrontMatterIndex,
 	formatDate,
 } from '../util'
 import {
 	isWeChatMessage,
 	renderWeChatMessageSimple,
 } from '../settings/template'
+
+/** Front Matter 中的消息条目，至少包含 id */
+interface FrontMatterMessage {
+	id: string
+	[key: string]: unknown
+}
+
+/** 解析后的 Front Matter 结构 */
+interface ParsedFrontMatter {
+	messages?: FrontMatterMessage[]
+	[key: string]: unknown
+}
+
+/** 查找 frontMatter 数组中匹配 id 的索引 */
+function findFrontMatterIndex(
+	frontMatter: FrontMatterMessage[],
+	id: string
+): number {
+	return frontMatter.findIndex((fm) => fm.id === id)
+}
 
 /**
  * MergeProcessor - 合并模式处理器
@@ -39,28 +58,43 @@ export class MergeProcessor {
 			removeFrontMatterFromContent(existingContent)
 
 		// 解析existing的Front Matter
-		let parsedExistingFrontMatter = parseFrontMatterFromContent(existingContent)
-		let existingFrontMatter = parsedExistingFrontMatter?.messages || []
+		const rawExisting = parseFrontMatterFromContent(existingContent) as
+			| ParsedFrontMatter
+			| FrontMatterMessage[]
+			| undefined
+		const parsedExistingFrontMatter: ParsedFrontMatter = Array.isArray(
+			rawExisting
+		)
+			? { messages: rawExisting }
+			: rawExisting ?? {}
+
+		// 保留所有原有的frontmatter属性
+		const otherProperties: Record<string, unknown> = {
+			...parsedExistingFrontMatter,
+		}
+		delete otherProperties.messages
+
+		// 提取messages数组进行处理
+		let existingFrontMatter: FrontMatterMessage[] =
+			parsedExistingFrontMatter.messages ?? []
 		if (!Array.isArray(existingFrontMatter)) {
-			existingFrontMatter = Array.isArray(parsedExistingFrontMatter)
-				? parsedExistingFrontMatter
-				: [parsedExistingFrontMatter]
+			existingFrontMatter = [existingFrontMatter as unknown as FrontMatterMessage]
 		}
 
 		// 解析new的Front Matter
-		const parsedNewFrontMatter = parseFrontMatterFromContent(content)
+		const rawNew = parseFrontMatterFromContent(content) as
+			| ParsedFrontMatter
+			| undefined
+		const parsedNewFrontMatter: ParsedFrontMatter = rawNew ?? {}
 		log('🔧 解析Front Matter:', {
 			itemId: item.id,
 			title: item.title,
 			parsed: parsedNewFrontMatter,
 		})
 
-		let newFrontMatter = parsedNewFrontMatter?.messages || []
-		if (
-			!newFrontMatter ||
-			!Array.isArray(newFrontMatter) ||
-			newFrontMatter.length === 0
-		) {
+		let newFrontMatter: FrontMatterMessage[] =
+			parsedNewFrontMatter.messages ?? []
+		if (!Array.isArray(newFrontMatter) || newFrontMatter.length === 0) {
 			logError('⚠️ Front Matter解析失败，使用默认值', {
 				itemId: item.id,
 				title: item.title,
@@ -76,7 +110,8 @@ export class MergeProcessor {
 				existingFrontMatter,
 				newFrontMatter,
 				existingContentWithoutFrontmatter,
-				contentWithoutFrontmatter
+				contentWithoutFrontmatter,
+				otherProperties
 			)
 		} else {
 			// 普通文章合并
@@ -86,7 +121,8 @@ export class MergeProcessor {
 				existingFrontMatter,
 				newFrontMatter,
 				existingContentWithoutFrontmatter,
-				contentWithoutFrontmatter
+				contentWithoutFrontmatter,
+				otherProperties
 			)
 		}
 
@@ -100,10 +136,11 @@ export class MergeProcessor {
 	private async processWeChatMessage(
 		item: Item,
 		omnivoreFile: TFile,
-		existingFrontMatter: any[],
-		newFrontMatter: any[],
+		existingFrontMatter: FrontMatterMessage[],
+		newFrontMatter: FrontMatterMessage[],
 		existingContentWithoutFrontmatter: string,
-		contentWithoutFrontmatter: string
+		contentWithoutFrontmatter: string,
+		otherProperties: Record<string, unknown>
 	): Promise<void> {
 		const frontMatterIdx = findFrontMatterIndex(existingFrontMatter, item.id)
 
@@ -112,6 +149,7 @@ export class MergeProcessor {
 			existingFrontMatter[frontMatterIdx] = newFrontMatter[0]
 
 			const newFrontMatterStr = `---\n${stringifyYaml({
+				...otherProperties,
 				messages: existingFrontMatter,
 			})}---`
 			await this.context.app.vault.modify(
@@ -133,6 +171,7 @@ export class MergeProcessor {
 			}
 
 			const newFrontMatterStr = `---\n${stringifyYaml({
+				...otherProperties,
 				messages: existingFrontMatter,
 			})}---`
 
@@ -152,10 +191,11 @@ export class MergeProcessor {
 	private async processRegularArticle(
 		item: Item,
 		omnivoreFile: TFile,
-		existingFrontMatter: any[],
-		newFrontMatter: any[],
+		existingFrontMatter: FrontMatterMessage[],
+		newFrontMatter: FrontMatterMessage[],
 		existingContentWithoutFrontmatter: string,
-		contentWithoutFrontmatter: string
+		contentWithoutFrontmatter: string,
+		otherProperties: Record<string, unknown>
 	): Promise<void> {
 		let newContentWithoutFrontMatter: string
 
@@ -207,6 +247,7 @@ export class MergeProcessor {
 		}
 
 		const newFrontMatterStr = `---\n${stringifyYaml({
+			...otherProperties,
 			messages: existingFrontMatter,
 		})}---`
 

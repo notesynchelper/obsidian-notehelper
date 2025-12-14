@@ -1,7 +1,7 @@
 // Credits go to Liam's Periodic Notes Plugin: https://github.com/liamcain/obsidian-periodic-notes
 
 import { createPopper, type Instance as PopperInstance } from '@popperjs/core'
-import { App, type ISuggestOwner, Scope } from 'obsidian'
+import { App, type ISuggestOwner, Scope, type KeymapEventListener } from 'obsidian'
 import { wrapAround } from '../util'
 
 // Internal Obsidian API types (not publicly exposed)
@@ -15,6 +15,13 @@ interface ObsidianInternalApp extends App {
   }
 }
 
+// Type for Obsidian's DOM event delegation (internal API)
+type DOMEventHandler<K extends keyof HTMLElementEventMap> = (
+  this: HTMLElement,
+  ev: HTMLElementEventMap[K],
+  delegateTarget: HTMLElement,
+) => unknown
+
 class Suggest<T> {
   private owner: ISuggestOwner<T>
   private values: T[]
@@ -22,19 +29,25 @@ class Suggest<T> {
   private selectedItem: number
   private containerEl: HTMLElement
 
+  // Pre-bound event handlers with proper types
+  private readonly boundOnSuggestionClick: DOMEventHandler<'click'>
+  private readonly boundOnSuggestionMouseover: DOMEventHandler<'mousemove'>
+
   constructor(owner: ISuggestOwner<T>, containerEl: HTMLElement, scope: Scope) {
     this.owner = owner
     this.containerEl = containerEl
 
-    containerEl.on(
-      'click',
-      '.suggestion-item',
-      this.onSuggestionClick.bind(this),
-    )
+    // Bind methods with explicit type casting
+    this.boundOnSuggestionClick = (event, el) =>
+      this.onSuggestionClick(event, el as HTMLDivElement)
+    this.boundOnSuggestionMouseover = (event, el) =>
+      this.onSuggestionMouseover(event, el as HTMLDivElement)
+
+    containerEl.on('click', '.suggestion-item', this.boundOnSuggestionClick)
     containerEl.on(
       'mousemove',
       '.suggestion-item',
-      this.onSuggestionMouseover.bind(this),
+      this.boundOnSuggestionMouseover,
     )
 
     scope.register([], 'ArrowUp', (event) => {
@@ -119,20 +132,31 @@ export abstract class TextInputSuggest<T> implements ISuggestOwner<T> {
   private suggestEl: HTMLElement
   private suggest: Suggest<T>
 
+  // Pre-bound event handlers with proper types
+  private readonly boundOnInputChanged: EventListener
+  private readonly boundClose: KeymapEventListener
+
   constructor(app: App, inputEl: HTMLInputElement) {
     this.app = app
     this.inputEl = inputEl
     this.scope = new Scope()
 
+    // Bind methods with explicit types
+    this.boundOnInputChanged = () => this.onInputChanged()
+    this.boundClose = () => {
+      this.close()
+      return false
+    }
+
     this.suggestEl = createDiv('suggestion-container')
     const suggestion = this.suggestEl.createDiv('suggestion')
     this.suggest = new Suggest(this, suggestion, this.scope)
 
-    this.scope.register([], 'Escape', this.close.bind(this))
+    this.scope.register([], 'Escape', this.boundClose)
 
-    this.inputEl.addEventListener('input', this.onInputChanged.bind(this))
-    this.inputEl.addEventListener('focus', this.onInputChanged.bind(this))
-    this.inputEl.addEventListener('blur', this.close.bind(this))
+    this.inputEl.addEventListener('input', this.boundOnInputChanged)
+    this.inputEl.addEventListener('focus', this.boundOnInputChanged)
+    this.inputEl.addEventListener('blur', () => this.close())
     this.suggestEl.on(
       'mousedown',
       '.suggestion-container',
@@ -156,6 +180,7 @@ export abstract class TextInputSuggest<T> implements ISuggestOwner<T> {
     ;(this.app as ObsidianInternalApp).keymap.pushScope(this.scope)
 
     container.appendChild(this.suggestEl)
+    // eslint-disable-next-line obsidianmd/prefer-abstract-input-suggest -- 使用自定义 Popper.js 实现，保持兼容性
     this.popper = createPopper(inputEl, this.suggestEl, {
       placement: 'bottom-start',
       modifiers: [

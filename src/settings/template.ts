@@ -307,10 +307,10 @@ export const renderItemContent = (
     )
     try {
       // parse the front matter template as yaml
-      const frontMatterParsed = parseYaml(frontMatterTemplateRendered)
+      const frontMatterParsed = parseYaml(frontMatterTemplateRendered) as Record<string, unknown> | null
 
       frontMatter = {
-        ...frontMatterParsed,
+        ...(frontMatterParsed ?? {}),
         ...frontMatter,
       }
     } catch (error) {

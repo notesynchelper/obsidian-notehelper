@@ -26,7 +26,7 @@ export async function downloadImage(
   maxRetries: number = 3,
   retryDelay: number = 1000
 ): Promise<DownloadResult> {
-  let lastError: any = null
+  let lastError: Error | null = null
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
@@ -58,8 +58,8 @@ export async function downloadImage(
         success: true,
         data: response.arrayBuffer,
       }
-    } catch (error: any) {
-      lastError = error
+    } catch (error: unknown) {
+      lastError = error instanceof Error ? error : new Error(String(error))
       logError(`下载图片失败 (${attempt + 1}/${maxRetries + 1}): ${url}`, error)
 
       // 如果不是最后一次尝试，等待后重试
@@ -143,7 +143,7 @@ export function isRemoteImage(url: string): boolean {
     // 检查是否为 HTTP/HTTPS URL
     const urlObj = new URL(url)
     return urlObj.protocol === 'http:' || urlObj.protocol === 'https:'
-  } catch (error) {
+  } catch {
     // URL 解析失败，不是有效的网络URL
     return false
   }

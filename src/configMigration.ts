@@ -1,5 +1,5 @@
-import { App, Notice, Plugin, normalizePath, TFolder } from 'obsidian'
-import { DEFAULT_SETTINGS, OmnivoreSettings } from './settings'
+import { App, Notice, Plugin, normalizePath } from 'obsidian'
+import { DEFAULT_SETTINGS, MergeMode, OmnivoreSettings } from './settings'
 import { log, logError } from './logger'
 
 interface BackupData {
@@ -9,18 +9,22 @@ interface BackupData {
 }
 
 /**
- * 配置迁移管理器 - 三层防护机制
+ * 兼容旧版配置 - 用于迁移已废弃的字段
+ */
+interface LegacySettings extends OmnivoreSettings {
+  isSingleFile?: boolean  // 已废弃，迁移为 mergeMode
+}
+
+/**
+ * 配置迁移管理器 - 外部备份机制
  *
- * 1. 主配置: Plugin.saveData() -> .obsidian/plugins/my-plugin/data.json (会被删除)
- * 2. 内嵌备份: 主配置中的 config-backup 数组 (随主配置一起删除)
- * 3. 外部备份: vault.adapter.write() -> .obsidian/.obsidian-sync-helper-backup/ (插件外,不会被删除)
+ * 外部备份: vault.adapter.write() -> .obsidian/.obsidian-sync-helper-backup/ (插件外,不会被删除)
  *
  * 恢复优先级: 主配置 → 外部备份 → 默认配置
  */
 export class ConfigMigrationManager {
   private app: App
   private plugin: Plugin
-  private readonly BACKUP_KEY = 'config-backup'
   private readonly MAX_BACKUPS = 5
   // Vault级外部备份路径 (插件目录外,升级时不会被删除)
   private readonly VAULT_BACKUP_FILE = 'config-history.json'
@@ -38,36 +42,31 @@ export class ConfigMigrationManager {
   }
 
   /**
-   * 使用官方API备份当前配置到插件数据目录 (内嵌备份)
+   * 备份当前配置到外部备份目录
+   * 注意：不再写入 data.json，只保存到外部文件
    */
   async backupSettings(settings: OmnivoreSettings): Promise<void> {
     try {
+      // 净化配置，移除可能的污染字段
+      const settingsToBackup = this.sanitizeSettings(settings)
+
       const backupData: BackupData = {
         timestamp: new Date().toISOString(),
         version: settings.version,
-        settings: settings
+        settings: settingsToBackup
       }
 
-      // 1. 内嵌备份: 保存到主配置文件中
-      const existingBackups = await this.loadInternalBackups()
-      existingBackups.unshift(backupData)
-      const limitedBackups = existingBackups.slice(0, this.MAX_BACKUPS)
-
-      const currentData = await this.plugin.loadData() || {}
-      currentData[this.BACKUP_KEY] = limitedBackups
-      await this.plugin.saveData(currentData)
-
-      // 2. 外部备份: 保存到 Vault 级备份目录 (不会被插件升级删除)
+      // 只保存到外部备份目录
       await this.saveToVaultBackup(backupData)
 
       log('配置备份成功', {
-        internalBackups: limitedBackups.length,
         externalBackup: 'vault level',
         latestBackup: backupData.timestamp
       })
     } catch (error) {
       // 备份失败不应该影响插件的正常功能,只记录警告
-      log('配置备份失败,但不影响插件正常运行', error.message)
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      log('配置备份失败,但不影响插件正常运行', errorMessage)
     }
   }
 
@@ -76,7 +75,13 @@ export class ConfigMigrationManager {
    */
   private async saveToVaultBackup(backupData: BackupData): Promise<void> {
     try {
-      // 确保备份目录存在 - 使用 adapter.exists() 检查
+      // 确保外部备份也不包含污染字段
+      const sanitizedBackup = {
+        ...backupData,
+        settings: this.sanitizeSettings(backupData.settings)
+      }
+
+      // 确保备份目录存在
       const backupDir = normalizePath(this.VAULT_BACKUP_DIR)
       const dirExists = await this.app.vault.adapter.exists(backupDir)
 
@@ -85,8 +90,8 @@ export class ConfigMigrationManager {
           await this.app.vault.createFolder(backupDir)
           log('创建外部备份目录:', backupDir)
         } catch (error) {
-          // 文件夹可能在并发操作中被创建，忽略此错误
-          if (!error.toString().includes('Folder already exists')) {
+          const errorStr = error instanceof Error ? error.message : String(error)
+          if (!errorStr.includes('Folder already exists')) {
             throw error
           }
           log('外部备份目录已存在，跳过创建')
@@ -97,7 +102,7 @@ export class ConfigMigrationManager {
       const existingBackups = await this.loadVaultBackups()
 
       // 添加新备份
-      existingBackups.unshift(backupData)
+      existingBackups.unshift(sanitizedBackup)
 
       // 保留最近的备份
       const limitedBackups = existingBackups.slice(0, this.MAX_BACKUPS)
@@ -114,19 +119,17 @@ export class ConfigMigrationManager {
       })
     } catch (error) {
       logError('外部备份保存失败:', error)
-      // 外部备份失败不影响主功能
     }
   }
 
   /**
-   * 从 Vault 级外部备份恢复配置
+   * 从 Vault 级外部备份加载配置
    */
   private async loadVaultBackups(): Promise<BackupData[]> {
     try {
       const backupPath = normalizePath(`${this.VAULT_BACKUP_DIR}/${this.VAULT_BACKUP_FILE}`)
       log('📂 检查外部备份文件:', backupPath)
 
-      // 检查文件是否存在
       const exists = await this.app.vault.adapter.exists(backupPath)
       if (!exists) {
         log('❌ 外部备份文件不存在:', backupPath)
@@ -135,14 +138,12 @@ export class ConfigMigrationManager {
 
       log('✅ 外部备份文件存在，开始读取...')
 
-      // 读取备份文件
       const content = await this.app.vault.adapter.read(backupPath)
       log('📄 外部备份文件内容长度:', content.length)
 
       const backups = JSON.parse(content) as unknown
       log('📦 解析到备份数量:', Array.isArray(backups) ? backups.length : 0)
 
-      // 验证备份数据格式
       if (!Array.isArray(backups)) {
         log('❌ 外部备份数据格式无效（不是数组）')
         return []
@@ -177,29 +178,6 @@ export class ConfigMigrationManager {
   }
 
   /**
-   * 从插件数据目录恢复配置 (内嵌备份)
-   */
-  async restoreFromInternalBackup(): Promise<OmnivoreSettings | null> {
-    try {
-      const backups = await this.loadInternalBackups()
-
-      if (backups.length === 0) {
-        log('未找到内嵌备份')
-        return null
-      }
-
-      const latestBackup = backups[0]
-      if (latestBackup.settings) {
-        log('从内嵌备份恢复配置成功', latestBackup.timestamp)
-        return latestBackup.settings
-      }
-    } catch (error) {
-      logError('从内嵌备份恢复配置失败', error)
-    }
-    return null
-  }
-
-  /**
    * 从 Vault 级外部备份恢复配置
    */
   async restoreFromVaultBackup(): Promise<OmnivoreSettings | null> {
@@ -214,7 +192,7 @@ export class ConfigMigrationManager {
       const latestBackup = backups[0]
       if (latestBackup.settings) {
         log('从外部备份恢复配置成功', latestBackup.timestamp)
-        return latestBackup.settings
+        return this.sanitizeSettings(latestBackup.settings)
       }
     } catch (error) {
       logError('从外部备份恢复配置失败', error)
@@ -223,40 +201,9 @@ export class ConfigMigrationManager {
   }
 
   /**
-   * 加载内嵌备份 (主配置文件中)
-   */
-  private async loadInternalBackups(): Promise<BackupData[]> {
-    try {
-      const data = await this.plugin.loadData() || {}
-      const backups = data[this.BACKUP_KEY] || []
-
-      if (!Array.isArray(backups)) {
-        log('内嵌备份数据格式无效,重新初始化')
-        return []
-      }
-
-      return backups.filter((backup: unknown): backup is BackupData => {
-        if (typeof backup !== 'object' || backup === null) {
-          return false
-        }
-        const obj = backup as Record<string, unknown>
-        return (
-          'timestamp' in obj &&
-          'settings' in obj &&
-          typeof obj.settings === 'object'
-        )
-      })
-    } catch (error) {
-      logError('加载内嵌备份失败', error)
-      return []
-    }
-  }
-
-  /**
    * 检查是否需要配置迁移
    */
   isConfigMigrationNeeded(currentSettings: OmnivoreSettings, manifestVersion: string): boolean {
-    // 如果当前配置为空或版本不匹配,可能需要迁移
     const hasMinimalConfig = currentSettings.apiKey && currentSettings.apiKey !== DEFAULT_SETTINGS.apiKey
     const versionMismatch = currentSettings.version !== manifestVersion
 
@@ -272,7 +219,6 @@ export class ConfigMigrationManager {
     backupSettings: OmnivoreSettings,
     manifestVersion: string
   ): OmnivoreSettings {
-    // 重要的用户配置字段,需要保留
     const userConfigFields = [
       'apiKey', 'syncAt', 'folder', 'filename', 'customQuery',
       'frequency', 'syncOnStart', 'folderDateFormat', 'filenameDateFormat',
@@ -282,42 +228,34 @@ export class ConfigMigrationManager {
       'wechatMessageTemplate'
     ]
 
-    // 优先使用备份配置,然后用默认值填补缺失的字段
     const mergedSettings = { ...DEFAULT_SETTINGS, ...backupSettings }
 
-    // 🔧 迁移逻辑：将旧的 isSingleFile 转换为新的 mergeMode
-    if ((backupSettings as any).isSingleFile !== undefined && !backupSettings.mergeMode) {
-      const oldIsSingleFile = (backupSettings as any).isSingleFile
-      // true -> MESSAGES (仅合并消息，这是最接近原来行为的选项)
-      // false -> NONE (不合并)
-      mergedSettings.mergeMode = oldIsSingleFile ? 'messages' as any : 'none' as any
+    // 迁移逻辑：将旧的 isSingleFile 转换为新的 mergeMode
+    const legacySettings = backupSettings as LegacySettings
+    if (legacySettings.isSingleFile !== undefined && !backupSettings.mergeMode) {
+      const oldIsSingleFile = legacySettings.isSingleFile
+      mergedSettings.mergeMode = oldIsSingleFile ? MergeMode.MESSAGES : MergeMode.NONE
       log('配置迁移：将 isSingleFile 转换为 mergeMode', {
         isSingleFile: oldIsSingleFile,
         mergeMode: mergedSettings.mergeMode
       })
     }
 
-    // 对关键字段进行特殊处理:如果备份中有有效值,优先使用备份值
     for (const field of userConfigFields) {
       const key = field as keyof OmnivoreSettings
       const backupValue = backupSettings[key]
       const currentValue = currentSettings[key]
 
-      // 如果备份中有有效值(非空字符串、非undefined、非null),使用备份值
       if (this.isValidValue(backupValue)) {
-        ;(mergedSettings as any)[key] = backupValue
+        ;(mergedSettings as Record<string, unknown>)[key] = backupValue
         log(`恢复配置字段 ${field}:`, {
           from: typeof backupValue === 'string' && backupValue.length > 10 ? '***' : backupValue
         })
+      } else if (this.isValidValue(currentValue)) {
+        ;(mergedSettings as Record<string, unknown>)[key] = currentValue
       }
-      // 否则如果当前值有效,使用当前值
-      else if (this.isValidValue(currentValue)) {
-        ;(mergedSettings as any)[key] = currentValue
-      }
-      // 最后使用默认值(已在上面的spread中设置)
     }
 
-    // 更新版本号
     mergedSettings.version = manifestVersion
 
     log('智能合并配置完成', {
@@ -330,7 +268,7 @@ export class ConfigMigrationManager {
   }
 
   /**
-   * 检查值是否有效(非空、非undefined、非null)
+   * 检查值是否有效
    */
   private isValidValue(value: unknown): boolean {
     if (value === undefined || value === null) {
@@ -354,7 +292,7 @@ export class ConfigMigrationManager {
   }
 
   /**
-   * 执行配置迁移流程 (按优先级尝试恢复)
+   * 执行配置迁移流程 - 只从外部备份恢复
    */
   async performMigration(
     currentSettings: OmnivoreSettings,
@@ -366,21 +304,7 @@ export class ConfigMigrationManager {
       targetVersion: manifestVersion
     })
 
-    // 1. 尝试从内嵌备份恢复 (主配置文件中)
-    log('🔍 尝试从内嵌备份恢复...')
-    const internalBackup = await this.restoreFromInternalBackup()
-    if (internalBackup) {
-      const mergedSettings = this.smartMergeSettings(currentSettings, internalBackup, manifestVersion)
-      log('✅ 配置迁移:从内嵌备份恢复配置成功', {
-        backupVersion: internalBackup.version,
-        targetVersion: manifestVersion,
-        hasApiKey: !!internalBackup.apiKey
-      })
-      return mergedSettings
-    }
-    log('❌ 内嵌备份不可用')
-
-    // 2. 尝试从外部备份恢复 (Vault级备份目录)
+    // 尝试从外部备份恢复
     log('🔍 尝试从外部备份恢复...')
     const vaultBackup = await this.restoreFromVaultBackup()
     if (vaultBackup) {
@@ -396,7 +320,7 @@ export class ConfigMigrationManager {
     }
     log('❌ 外部备份不可用')
 
-    // 3. 没有任何备份,使用当前配置并更新版本
+    // 没有备份,使用当前配置并更新版本
     const updatedSettings = { ...currentSettings, version: manifestVersion }
     log('⚠️ 配置迁移:无备份可用,仅更新版本', {
       fromVersion: currentSettings.version,
@@ -410,18 +334,12 @@ export class ConfigMigrationManager {
    * 获取备份信息用于调试
    */
   async getBackupInfo(): Promise<{
-    internal: { count: number; latest: string | null }
     external: { count: number; latest: string | null }
   }> {
     try {
-      const internalBackups = await this.loadInternalBackups()
       const externalBackups = await this.loadVaultBackups()
 
       return {
-        internal: {
-          count: internalBackups.length,
-          latest: internalBackups.length > 0 ? internalBackups[0].timestamp : null
-        },
         external: {
           count: externalBackups.length,
           latest: externalBackups.length > 0 ? externalBackups[0].timestamp : null
@@ -430,32 +348,63 @@ export class ConfigMigrationManager {
     } catch (error) {
       logError('获取备份信息失败', error)
       return {
-        internal: { count: 0, latest: null },
         external: { count: 0, latest: null }
       }
     }
   }
 
   /**
-   * 清理所有备份(用于重置)
+   * 清理外部备份
    */
   async clearAllBackups(): Promise<void> {
     try {
-      // 清理内嵌备份
-      const currentData = await this.plugin.loadData() || {}
-      currentData[this.BACKUP_KEY] = []
-      await this.plugin.saveData(currentData)
-
-      // 清理外部备份
       const backupPath = normalizePath(`${this.VAULT_BACKUP_DIR}/${this.VAULT_BACKUP_FILE}`)
       const exists = await this.app.vault.adapter.exists(backupPath)
       if (exists) {
         await this.app.vault.adapter.remove(backupPath)
       }
 
-      log('所有备份已清理')
+      log('外部备份已清理')
     } catch (error) {
       logError('清理备份失败', error)
+    }
+  }
+
+  /**
+   * 净化配置对象：移除可能导致问题的字段
+   */
+  private sanitizeSettings(settings: OmnivoreSettings): OmnivoreSettings {
+    const cloned = JSON.parse(JSON.stringify(settings)) as Record<string, unknown>
+
+    // 删除所有备份相关字段
+    delete cloned['config-backup']
+
+    // 递归清理嵌套对象中的备份字段（处理已损坏的遗留数据）
+    this.deepCleanBackupFields(cloned)
+
+    return cloned as unknown as OmnivoreSettings
+  }
+
+  /**
+   * 递归清理对象中的备份字段
+   */
+  private deepCleanBackupFields(obj: Record<string, unknown>): void {
+    for (const key in obj) {
+      if (key === 'config-backup') {
+        delete obj[key]
+        continue
+      }
+
+      const value = obj[key]
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        this.deepCleanBackupFields(value as Record<string, unknown>)
+      } else if (Array.isArray(value)) {
+        value.forEach(item => {
+          if (item && typeof item === 'object') {
+            this.deepCleanBackupFields(item as Record<string, unknown>)
+          }
+        })
+      }
     }
   }
 }

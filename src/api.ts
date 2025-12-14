@@ -4,6 +4,15 @@ import { getContentApiUrl } from './settings/local-test'
 import { LOCAL_TEST_CONFIG } from './settings/local-test'
 import { log, logError } from './logger'
 
+// 工具函数
+const sleep = (ms: number): Promise<void> =>
+  new Promise(resolve => window.setTimeout(resolve, ms))
+
+// 请求错误类型
+interface RequestError extends Error {
+  status?: number
+}
+
 export enum HighlightColors {
   Yellow = 'yellow',
   Red = 'red',
@@ -45,6 +54,27 @@ interface OmnivoreCompatibleResponse {
     endCursor: string
     totalCount: number
   }
+}
+
+// 文章数量 API 响应
+interface ArticleCountResponse {
+  count: number
+}
+
+// 清空文章 API 响应
+interface ClearArticlesApiResponse {
+  success: boolean
+  deletedCount: number
+  message: string
+}
+
+// VIP 配置 API 响应
+interface VipConfigResponse {
+  success: boolean
+  data: Array<{
+    vip_type: string
+    endtime?: string
+  }>
 }
 
 const baseUrl = (endpoint: string) => endpoint.replace(/\/api\/graphql$/, '')
@@ -138,7 +168,7 @@ const searchCustomServerItems = async (
     }),
   })
 
-  return response.json
+  return response.json as OmnivoreCompatibleResponse
 }
 
 // 本地Mock服务器搜索函数
@@ -197,7 +227,7 @@ const searchLocalItems = async (
     })
   })
 
-  return response.json
+  return response.json as LocalSearchResponse
 }
 
 const getContent = async (
@@ -215,7 +245,7 @@ const getContent = async (
     body: JSON.stringify({ libraryItemIds, format: 'highlightedMarkdown' }),
   })
 
-  return response.json
+  return response.json as GetContentResponse
 }
 
 const downloadFromUrl = async (url: string): Promise<string> => {
@@ -227,7 +257,8 @@ const downloadFromUrl = async (url: string): Promise<string> => {
     return response.text
   } catch (error) {
     // retry after 1 second if download returns 404
-    if (error.status === 404) {
+    const reqError = error as RequestError
+    if (reqError.status === 404) {
       await sleep(1000)
       return downloadFromUrl(url)
     }
@@ -264,7 +295,7 @@ const fetchContentForItems = async (
       item.content = await Promise.race([
         downloadFromUrl(c.downloadUrl),
         new Promise<string>(
-          (_, reject) => setTimeout(() => reject(new Error('Timeout')), 600_000), // 10 minutes
+          (_, reject) => window.setTimeout(() => reject(new Error('Timeout')), 600_000), // 10 minutes
         ),
       ])
     }),
@@ -419,7 +450,8 @@ export const getArticleCount = async (
     })
 
     log('🔧 获取文章数量响应:', response.json)
-    return response.json.count || 0
+    const data = response.json as ArticleCountResponse
+    return data.count || 0
   } catch (error) {
     logError('获取文章数量失败:', error)
     throw error
@@ -457,7 +489,7 @@ export const clearAllArticles = async (
     })
 
     log('🔧 清空文章响应:', response.json)
-    return response.json
+    return response.json as ClearArticlesApiResponse
   } catch (error) {
     logError('清空文章失败:', error)
     throw error
@@ -498,9 +530,10 @@ export const fetchVipStatus = async (apiKey: string): Promise<VipStatus> => {
     })
 
     log('🔧 VIP状态响应:', response.json)
+    const vipResponse = response.json as VipConfigResponse
 
-    if (response.json.success && response.json.data && response.json.data.length > 0) {
-      const vipData = response.json.data[0]
+    if (vipResponse.success && vipResponse.data && vipResponse.data.length > 0) {
+      const vipData = vipResponse.data[0]
       const vipType = vipData.vip_type as 'obtrail' | 'obvip' | 'obvvip'
       const endTime = vipData.endtime
 

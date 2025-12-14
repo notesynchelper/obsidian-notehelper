@@ -12,12 +12,11 @@ import {
   detectImageFormat,
   convertPngToJpeg,
   saveImageToVault,
-  extractFilenameFromUrl,
-  sanitizeFilename,
 } from './imageProcessor'
 import { ImageLocalizationQueue } from './imageQueue'
 import { render } from '../settings/template'
 import { DateTime } from 'luxon'
+import { Item } from '@omnivore-app/api'
 
 /**
  * 图片链接匹配正则表达式
@@ -221,10 +220,31 @@ export class ImageLocalizer {
    * @param file 笔记文件
    */
   private generateFolderPath(file: TFile): string {
-    // 创建临时 item 对象用于模板渲染
-    const tempItem: any = {
+    // 创建符合 Item 接口最小要求的对象用于模板渲染
+    // render 函数主要使用 title 和 savedAt 字段
+    const tempItem: Item = {
+      id: '',
       title: file.basename,
-      savedAt: DateTime.now().toISO(),
+      siteName: null,
+      originalArticleUrl: null,
+      author: null,
+      description: null,
+      slug: '',
+      labels: null,
+      highlights: null,
+      updatedAt: null,
+      savedAt: DateTime.now().toISO() ?? new Date().toISOString(),
+      pageType: 'ARTICLE',
+      content: null,
+      publishedAt: null,
+      url: '',
+      image: null,
+      readAt: null,
+      wordsCount: null,
+      readingProgressPercent: 0,
+      isArchived: false,
+      archivedAt: null,
+      contentReader: null,
     }
 
     // 渲染文件夹路径模板

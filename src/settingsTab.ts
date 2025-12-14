@@ -1,6 +1,5 @@
 import {
   App,
-  ColorComponent,
   Modal,
   Notice,
   PluginSettingTab,
@@ -13,14 +12,15 @@ import {
   DEFAULT_SETTINGS,
   FRONT_MATTER_VARIABLES,
   Filter,
-  HighlightManagerId,
-  HighlightOrder,
   ImageMode,
   MergeMode,
 } from './settings'
-import { getQueryFromFilter, setOrUpdateHighlightColors } from './util'
-import { getArticleCount, clearAllArticles, HighlightColors, fetchVipStatus, getQrCodeUrl, VipStatus } from './api'
-import { log, logError, logInfo } from './logger'
+import { getQueryFromFilter } from './util'
+import { getArticleCount, clearAllArticles, fetchVipStatus, getQrCodeUrl } from './api'
+import { log, logError } from './logger'
+
+// Obsidian 全局函数声明
+declare function createFragment(callback: (fragment: DocumentFragment) => void): DocumentFragment
 
 interface VersionInfo {
   version: string
@@ -54,12 +54,12 @@ export class OmnivoreSettingTab extends PluginSettingTab {
 
     // 如果没有密钥，隐藏状态容器
     if (!apiKey || apiKey.trim() === '') {
-      this.vipStatusContainer.style.display = 'none'
+      this.vipStatusContainer.addClass('is-hidden')
       return
     }
 
     // 显示状态容器
-    this.vipStatusContainer.style.display = 'flex'
+    this.vipStatusContainer.removeClass('is-hidden')
 
     // 查询VIP状态
     const vipStatus = await fetchVipStatus(apiKey)
@@ -96,7 +96,7 @@ export class OmnivoreSettingTab extends PluginSettingTab {
     }
   }
 
-  async display(): Promise<void> {
+  display(): void {
     const { containerEl } = this
 
     containerEl.empty()
@@ -106,8 +106,8 @@ export class OmnivoreSettingTab extends PluginSettingTab {
     this.displayVersionInfo(containerEl)
 
     // 🚀 延迟执行配置迁移（不阻塞页面显示）
-    setTimeout(async () => {
-      await this.checkAndPerformMigration()
+    setTimeout(() => {
+      void this.checkAndPerformMigration()
     }, 500)
 
     /**
@@ -133,7 +133,14 @@ export class OmnivoreSettingTab extends PluginSettingTab {
     /**
      * VIP Status Section
      **/
-    containerEl.createEl('h3', { text: '会员中心' })
+    new Setting(containerEl)
+      .setName("会员中心")
+      .setHeading()
+      .addButton((button) => {
+        button.setButtonText('刷新').onClick(async () => {
+          await this.updateVipStatus()
+        })
+      })
 
     // 会员状态展示区域
     this.vipStatusContainer = containerEl.createEl('div', {
@@ -146,13 +153,13 @@ export class OmnivoreSettingTab extends PluginSettingTab {
     })
 
     // 会员状态信息
-    const statusInfo = statusContainer.createEl('div', {
+    statusContainer.createEl('div', {
       cls: 'vip-status-info',
       text: '加载中...',
     })
 
     // 引导文字（放在状态信息下方）
-    const qrLabel = statusContainer.createEl('div', {
+    statusContainer.createEl('div', {
       cls: 'vip-status-qr-label',
       text: '加载中...',
     })
@@ -163,23 +170,23 @@ export class OmnivoreSettingTab extends PluginSettingTab {
     })
 
     // 二维码图片
-    const qrImg = qrContainer.createEl('img', {
+    qrContainer.createEl('img', {
       attr: {
         alt: '二维码',
       },
     })
 
     // 页面加载时查询VIP状态
-    this.updateVipStatus()
+    void this.updateVipStatus()
 
     /**
      * Article Management Options
      **/
-    containerEl.createEl('h3', { text: '文章管理' })
+    new Setting(containerEl).setName("文章管理").setHeading()
 
     // 使用 Setting 组件来保持样式一致
     const articleCountSetting = new Setting(containerEl)
-      .setName('云空间内容数量 / Cloud Space Content Count')
+      .setName('云空间内容数量 / cloud space content count')
       .setDesc(
         createFragment((fragment) => {
           fragment.append(
@@ -188,7 +195,7 @@ export class OmnivoreSettingTab extends PluginSettingTab {
             'Shows the total count of articles and messages in cloud space. Message merge mode is enabled by default, messages from the same day are merged into a single note.',
             fragment.createEl('br'),
             fragment.createEl('br'),
-            fragment.createEl('strong', { text: '当前数量 / Current: --' })
+            fragment.createEl('strong', { text: '当前数量 / current: --' })
           )
         })
       )
@@ -216,7 +223,7 @@ export class OmnivoreSettingTab extends PluginSettingTab {
                   'Shows the total count of articles and messages in cloud space. Message merge mode is enabled by default, messages from the same day are merged into a single note.',
                   fragment.createEl('br'),
                   fragment.createEl('br'),
-                  fragment.createEl('strong', { text: `当前数量 / Current: ${count}` })
+                  fragment.createEl('strong', { text: `当前数量 / current: ${count}` })
                 )
               })
             )
@@ -264,33 +271,35 @@ export class OmnivoreSettingTab extends PluginSettingTab {
                       'Shows the total count of articles and messages in cloud space. Message merge mode is enabled by default, messages from the same day are merged into a single note.',
                       fragment.createEl('br'),
                       fragment.createEl('br'),
-                      fragment.createEl('strong', { text: '当前数量 / Current: 0' })
+                      fragment.createEl('strong', { text: '当前数量 / current: 0' })
                     )
                   })
                 )
 
                 // 自动刷新以获取最新数量
-                setTimeout(async () => {
-                  try {
-                    const count = await getArticleCount(
-                      this.plugin.settings.endpoint,
-                      this.plugin.settings.apiKey
-                    )
-                    articleCountSetting.setDesc(
-                      createFragment((fragment) => {
-                        fragment.append(
-                          '显示云空间中文章和消息的总数量。消息合并模式默认开启，一天的消息会合并到同一个笔记中。',
-                          fragment.createEl('br'),
-                          'Shows the total count of articles and messages in cloud space. Message merge mode is enabled by default, messages from the same day are merged into a single note.',
-                          fragment.createEl('br'),
-                          fragment.createEl('br'),
-                          fragment.createEl('strong', { text: `当前数量 / Current: ${count}` })
-                        )
-                      })
-                    )
-                  } catch (error) {
-                    logError('刷新文章数量失败:', error)
-                  }
+                setTimeout(() => {
+                  void (async () => {
+                    try {
+                      const count = await getArticleCount(
+                        this.plugin.settings.endpoint,
+                        this.plugin.settings.apiKey
+                      )
+                      articleCountSetting.setDesc(
+                        createFragment((fragment) => {
+                          fragment.append(
+                            '显示云空间中文章和消息的总数量。消息合并模式默认开启，一天的消息会合并到同一个笔记中。',
+                            fragment.createEl('br'),
+                            'Shows the total count of articles and messages in cloud space. Message merge mode is enabled by default, messages from the same day are merged into a single note.',
+                            fragment.createEl('br'),
+                            fragment.createEl('br'),
+                            fragment.createEl('strong', { text: `当前数量 / current: ${count}` })
+                          )
+                        })
+                      )
+                    } catch (error) {
+                      logError('刷新文章数量失败:', error)
+                    }
+                  })()
                 }, 1000)
               } catch (error) {
                 logError('清空文章失败:', error)
@@ -308,7 +317,7 @@ export class OmnivoreSettingTab extends PluginSettingTab {
     /**
      * Query Options
      **/
-    containerEl.createEl('h3', { text: '查询' })
+    new Setting(containerEl).setName("查询").setHeading()
 
     new Setting(containerEl)
       .setName('筛选器')
@@ -349,7 +358,7 @@ export class OmnivoreSettingTab extends PluginSettingTab {
     /**
      * Sync Options, such as folder location, file format, etc.
      **/
-    containerEl.createEl('h3', { text: '同步' })
+    new Setting(containerEl).setName("同步").setHeading()
 
     new Setting(containerEl)
       .setName('启动时同步')
@@ -365,21 +374,45 @@ export class OmnivoreSettingTab extends PluginSettingTab {
           }),
       )
     new Setting(containerEl)
-      .setName('频率')
+      .setName('频率 / frequency')
       .setDesc(
-        '输入自动同步的频率（分钟）。0 表示手动同步',
+        createFragment((fragment) => {
+          fragment.append(
+            '输入自动同步的频率（秒）。0 表示手动同步，最低 15 秒',
+            fragment.createEl('br'),
+            fragment.createEl('br'),
+            '常用频率示例:',
+            fragment.createEl('br'),
+            '• 15 秒（最快）',
+            fragment.createEl('br'),
+            '• 60 秒（1分钟）',
+            fragment.createEl('br'),
+            '• 300 秒（5分钟）',
+            fragment.createEl('br'),
+            '• 1800 秒（30分钟）'
+          )
+        })
       )
       .addText((text) =>
         text
-          .setPlaceholder('输入频率')
+          .setPlaceholder('输入频率（秒）')
           .setValue(this.plugin.settings.frequency.toString())
           .onChange(async (value) => {
             // validate frequency
             const frequency = parseInt(value)
+
+            // 验证1：必须是数字
             if (isNaN(frequency)) {
               new Notice('频率必须是正整数')
               return
             }
+
+            // 验证2：最小值检查（15秒）
+            if (frequency > 0 && frequency < 15) {
+              new Notice('同步频率不能低于 15 秒')
+              return
+            }
+
             // save frequency
             this.plugin.settings.frequency = frequency
             await this.plugin.saveSettings()
@@ -405,7 +438,7 @@ export class OmnivoreSettingTab extends PluginSettingTab {
       )
 
     new Setting(containerEl)
-      .setName('消息合并模式 / Message Merge Mode')
+      .setName('消息合并模式 / message merge mode')
       .setDesc(
         createFragment((fragment) => {
           fragment.append(
@@ -425,9 +458,9 @@ export class OmnivoreSettingTab extends PluginSettingTab {
       )
       .addDropdown((dropdown) =>
         dropdown
-          .addOption(MergeMode.NONE, '不合并 / No Merge')
-          .addOption(MergeMode.MESSAGES, '仅合并消息 / Merge Messages Only')
-          .addOption(MergeMode.ALL, '合并所有 / Merge All')
+          .addOption(MergeMode.NONE, '不合并 / no merge')
+          .addOption(MergeMode.MESSAGES, '仅合并消息 / merge messages only')
+          .addOption(MergeMode.ALL, '合并所有 / merge all')
           .setValue(this.plugin.settings.mergeMode)
           .onChange(async (value) => {
             this.plugin.settings.mergeMode = value as MergeMode
@@ -440,7 +473,7 @@ export class OmnivoreSettingTab extends PluginSettingTab {
     // 单文件名称设置 - 只在合并模式不是 NONE 时显示
     if (this.plugin.settings.mergeMode !== MergeMode.NONE) {
       new Setting(containerEl)
-        .setName('单文件名称模板 / Single File Name Template')
+        .setName('单文件名称模板 / single file name template')
         .setDesc(
           createFragment((fragment) => {
             fragment.append(
@@ -472,44 +505,35 @@ export class OmnivoreSettingTab extends PluginSettingTab {
         )
 
       new Setting(containerEl)
-        .setName('单文件日期格式 / Single File Date Format')
+        .setName('单文件日期格式 / single file date format')
         .setDesc(
           createFragment((fragment) => {
             fragment.append(
-              '设置单文件名称中 ',
-              fragment.createEl('code', { text: '{{{date}}}' }),
-              ' 变量的日期格式。格式参考 / Specify the date format for ',
-              fragment.createEl('code', { text: '{{{date}}}' }),
-              ' variable in single file name. Format ',
-              fragment.createEl('a', {
-                text: 'reference',
-                href: 'https://moment.github.io/luxon/#/formatting?id=table-of-tokens',
-              }),
+              '设置单文件名称中日期变量的格式。参考 / Specify the date format for the date variable in single file name. Reference format documentation online',
               fragment.createEl('br'),
               fragment.createEl('br'),
-              '常用格式 / Common formats:',
+              '常用格式示例 / common format examples below:',
               fragment.createEl('br'),
-              '• ',
-              fragment.createEl('code', { text: 'yyyy-MM-dd' }),
-              ' → 2025-01-23',
-              fragment.createEl('br'),
-              '• ',
-              fragment.createEl('code', { text: 'yyyyMMdd' }),
-              ' → 20250123',
-              fragment.createEl('br'),
-              '• ',
-              fragment.createEl('code', { text: 'yyyy/MM/dd' }),
-              ' → 2025/01/23',
-              fragment.createEl('br'),
-              '• ',
-              fragment.createEl('code', { text: 'yyyy年MM月dd日' }),
-              ' → 2025年01月23日',
             )
+            // Format examples
+            const examples = [
+              { format: 'yyyy-MM-dd', sample: '2025-01-23' },
+              { format: 'yyyyMMdd', sample: '20250123' },
+              { format: 'yyyy/MM/dd', sample: '2025/01/23' },
+              { format: 'yyyy年MM月dd日', sample: '2025年01月23日' },
+            ]
+            examples.forEach((example, index) => {
+              if (index > 0) {
+                fragment.append(fragment.createEl('br'))
+              }
+              fragment.append('• ', fragment.createEl('code', { text: example.format }), ` (example: ${example.sample})`)
+            })
           }),
         )
         .addText((text) =>
           text
-            .setPlaceholder('yyyy-MM-dd')
+            // eslint-disable-next-line obsidianmd/ui/sentence-case
+            .setPlaceholder('date format: yyyy-MM-dd')
             .setValue(this.plugin.settings.singleFileDateFormat)
             .onChange(async (value) => {
               this.plugin.settings.singleFileDateFormat = value || 'yyyy-MM-dd'
@@ -520,7 +544,7 @@ export class OmnivoreSettingTab extends PluginSettingTab {
     }
 
     new Setting(containerEl)
-      .setName('文件夹 / Folder')
+      .setName('文件夹 / folder')
       .setDesc(
         '输入数据存储的文件夹路径。可在文件夹名称中使用 {{{title}}}、{{{dateSaved}}} / Enter the folder where the data will be stored. {{{title}}}, {{{dateSaved}}} could be used in the folder name',
       )
@@ -535,21 +559,13 @@ export class OmnivoreSettingTab extends PluginSettingTab {
           })
       })
     new Setting(containerEl)
-      .setName('文件夹日期格式 / Folder Date Format')
-      .setDesc(
-        createFragment((fragment) => {
-          fragment.append(
-            '如果文件夹名称中使用日期，请指定日期格式。格式参考 / If date is used as part of folder name, specify the format date for use. Format ',
-            fragment.createEl('a', {
-              text: 'reference',
-              href: 'https://moment.github.io/luxon/#/formatting?id=table-of-tokens',
-            }),
-          )
-        }),
-      )
+      .setName('文件夹日期格式 / folder date format')
+      // eslint-disable-next-line obsidianmd/ui/sentence-case
+      .setDesc('specify the date format if date is used. Example: yyyy-MM-dd')
       .addText((text) =>
         text
-          .setPlaceholder('yyyy-MM-dd')
+          // eslint-disable-next-line obsidianmd/ui/sentence-case
+          .setPlaceholder('date format')
           .setValue(this.plugin.settings.folderDateFormat)
           .onChange(async (value) => {
             this.plugin.settings.folderDateFormat = value
@@ -558,7 +574,7 @@ export class OmnivoreSettingTab extends PluginSettingTab {
       )
 
     new Setting(containerEl)
-      .setName('附件文件夹 / Attachment Folder')
+      .setName('附件文件夹 / attachment folder')
       .setDesc(
         '输入附件下载的文件夹路径。可在文件夹名称中使用 {{{title}}}、{{{dateSaved}}} / Enter the folder where the attachment will be downloaded to. {{{title}}}, {{{dateSaved}}} could be used in the folder name',
       )
@@ -574,7 +590,7 @@ export class OmnivoreSettingTab extends PluginSettingTab {
       })
 
     new Setting(containerEl)
-      .setName('文件名 / Filename')
+      .setName('文件名 / filename')
       .setDesc(
         '输入数据存储的文件名。可在文件名中使用 {{id}}、{{{title}}}、{{{dateSaved}}} / Enter the filename where the data will be stored. {{id}}, {{{title}}}, {{{dateSaved}}} could be used in the filename',
       )
@@ -589,20 +605,12 @@ export class OmnivoreSettingTab extends PluginSettingTab {
       )
 
     new Setting(containerEl)
-      .setName('文件名日期格式 / Filename Date Format')
-      .setDesc(
-        createFragment((fragment) => {
-          fragment.append(
-            '如果文件名中使用日期，请指定日期格式。格式参考 / If date is used as part of file name, specify the format date for use. Format ',
-            fragment.createEl('a', {
-              text: 'reference',
-              href: 'https://moment.github.io/luxon/#/formatting?id=table-of-tokens',
-            }),
-          )
-        }),
-      )
+      .setName('文件名日期格式 / filename date format')
+      // eslint-disable-next-line obsidianmd/ui/sentence-case
+      .setDesc('specify the date format for the filename if date is used. Reference format documentation online.')
       .addText((text) =>
         text
+          // eslint-disable-next-line obsidianmd/ui/sentence-case
           .setPlaceholder('yyyy-MM-dd')
           .setValue(this.plugin.settings.filenameDateFormat)
           .onChange(async (value) => {
@@ -614,10 +622,10 @@ export class OmnivoreSettingTab extends PluginSettingTab {
     /**
      * Image Processing Settings
      **/
-    containerEl.createEl('h3', { text: '图片处理 / Image Processing' })
+    new Setting(containerEl).setName("图片处理 / image processing").setHeading()
 
     new Setting(containerEl)
-      .setName('图片处理模式 / Image Processing Mode')
+      .setName('图片处理模式 / image processing mode')
       .setDesc(
         createFragment((fragment) => {
           fragment.append(
@@ -640,9 +648,9 @@ export class OmnivoreSettingTab extends PluginSettingTab {
       )
       .addDropdown((dropdown) =>
         dropdown
-          .addOption(ImageMode.LOCAL, '缓存到本地 / Download to Local')
-          .addOption(ImageMode.REMOTE, '保留原始链接 / Keep Remote Links')
-          .addOption(ImageMode.DISABLED, '不加载图片 / Disable Images')
+          .addOption(ImageMode.LOCAL, '缓存到本地 / download to local')
+          .addOption(ImageMode.REMOTE, '保留原始链接 / keep remote links')
+          .addOption(ImageMode.DISABLED, '不加载图片 / disable images')
           .setValue(this.plugin.settings.imageMode)
           .onChange(async (value) => {
             this.plugin.settings.imageMode = value as ImageMode
@@ -655,9 +663,10 @@ export class OmnivoreSettingTab extends PluginSettingTab {
     // 只在本地模式下显示高级选项
     if (this.plugin.settings.imageMode === ImageMode.LOCAL) {
       new Setting(containerEl)
-        .setName('PNG转JPEG / PNG to JPEG')
+        // eslint-disable-next-line obsidianmd/ui/sentence-case
+        .setName('convert PNG to JPEG / convert png to jpeg')
         .setDesc(
-          '勾选此选项将PNG图片转换为JPEG格式以节省空间。注意：会丢失透明度信息 / Check this box to convert PNG images to JPEG format to save space. Note: transparency will be lost'
+          '勾选此选项将PNG图片转换为JPEG格式以节省空间。注意：会丢失透明度信息 / check this box to convert PNG images to JPEG format to save space. Note: transparency will be lost'
         )
         .addToggle((toggle) =>
           toggle
@@ -673,9 +682,9 @@ export class OmnivoreSettingTab extends PluginSettingTab {
       // 只在启用PNG转JPEG时显示质量设置
       if (this.plugin.settings.enablePngToJpeg) {
         new Setting(containerEl)
-          .setName('JPEG质量 / JPEG Quality')
+          .setName('JPEG质量 / JPEG quality')
           .setDesc(
-            '设置JPEG压缩质量（0-100），默认85。数值越高质量越好但文件越大 / Set JPEG compression quality (0-100), default 85. Higher values mean better quality but larger files'
+            '设置JPEG压缩质量（0-100），默认85。数值越高质量越好但文件越大 / set JPEG compression quality (0-100), default 85. Higher values mean better quality but larger files'
           )
           .addSlider((slider) =>
             slider
@@ -690,9 +699,9 @@ export class OmnivoreSettingTab extends PluginSettingTab {
       }
 
       new Setting(containerEl)
-        .setName('下载重试次数 / Download Retries')
+        .setName('下载重试次数 / download retries')
         .setDesc(
-          '设置图片下载失败时的重试次数，默认3次 / Set the number of retries when image download fails, default 3'
+          '设置图片下载失败时的重试次数，默认3次 / set the number of retries when image download fails, default 3'
         )
         .addText((text) =>
           text
@@ -710,28 +719,9 @@ export class OmnivoreSettingTab extends PluginSettingTab {
         )
 
       new Setting(containerEl)
-        .setName('图片存储文件夹 / Image Storage Folder')
+        .setName('图片存储文件夹 / image storage folder')
         .setDesc(
-          createFragment((fragment) => {
-            fragment.append(
-              '设置本地化图片的存储路径。可使用 ',
-              fragment.createEl('code', { text: '{{{date}}}' }),
-              ' 作为日期变量 / Set the storage path for localized images. Use ',
-              fragment.createEl('code', { text: '{{{date}}}' }),
-              ' as date variable',
-              fragment.createEl('br'),
-              fragment.createEl('br'),
-              '示例 / Examples:',
-              fragment.createEl('br'),
-              '• ',
-              fragment.createEl('code', { text: '笔记同步助手/images/{{{date}}}' }),
-              ' → 按日期分类',
-              fragment.createEl('br'),
-              '• ',
-              fragment.createEl('code', { text: 'attachments/images' }),
-              ' → 统一存储',
-            )
-          }),
+          '设置本地化图片的存储路径。可使用 {{{date}}} 作为日期变量 / set the storage path for localized images. Use {{{date}}} as date variable. Examples: 笔记同步助手/images/{{{date}}} or attachments/images'
         )
         .addText((text) =>
           text
@@ -894,10 +884,10 @@ export class OmnivoreSettingTab extends PluginSettingTab {
     /**
      * Advanced Settings
      **/
-    containerEl.createEl('h3', {
-      cls: 'omnivore-collapsible',
-      text: '高级设置 / Advanced Settings',
-    })
+    new Setting(containerEl)
+      .setName("高级选项 / advanced")
+      .setHeading()
+      .setClass('omnivore-collapsible')
 
     const advancedSettings = containerEl.createEl('div', {
       cls: 'omnivore-content',
@@ -906,10 +896,10 @@ export class OmnivoreSettingTab extends PluginSettingTab {
     /**
      * Article Render Options in Advanced Settings
      **/
-    advancedSettings.createEl('h4', { text: '文章设置 / Article Settings' })
+    new Setting(advancedSettings).setName("文章选项 / article").setHeading()
 
     new Setting(advancedSettings)
-      .setName('前置元数据 / Front Matter')
+      .setName('前置元数据 / front matter')
       .setDesc(
         createFragment((fragment) => {
           fragment.append(
@@ -941,7 +931,7 @@ export class OmnivoreSettingTab extends PluginSettingTab {
       })
 
     new Setting(advancedSettings)
-      .setName('文章模板 / Article Template')
+      .setName('文章模板 / article template')
       .setDesc(
         createFragment((fragment) => {
           fragment.append(
@@ -962,8 +952,8 @@ export class OmnivoreSettingTab extends PluginSettingTab {
               : DEFAULT_SETTINGS.template
             await this.plugin.saveSettings()
           })
-        text.inputEl.setAttr('rows', 25)
-        text.inputEl.setAttr('cols', 50)
+        text.inputEl.setAttr('rows', 4)
+        text.inputEl.setAttr('cols', 30)
       })
       .addExtraButton((button) => {
         // add a button to reset template
@@ -979,13 +969,13 @@ export class OmnivoreSettingTab extends PluginSettingTab {
       })
 
     new Setting(advancedSettings)
-      .setName('保存日期格式 / Date Saved Format')
-      .setDesc(
-        '输入渲染模板中 dateSaved 变量的日期格式 / Enter the date format for dateSaved variable in rendered template',
-      )
+      .setName('保存日期格式 / date saved format')
+      // eslint-disable-next-line obsidianmd/ui/sentence-case
+      .setDesc('specify the date format for dateSaved variable in rendered template. Example format: yyyy-MM-dd\'T\'HH:mm:ss')
       .addText((text) =>
         text
-          .setPlaceholder("yyyy-MM-dd'T'HH:mm:ss")
+          // eslint-disable-next-line obsidianmd/ui/sentence-case
+          .setPlaceholder('yyyy-MM-dd\'T\'HH:mm:ss')
           .setValue(this.plugin.settings.dateSavedFormat)
           .onChange(async (value) => {
             this.plugin.settings.dateSavedFormat = value
@@ -994,7 +984,7 @@ export class OmnivoreSettingTab extends PluginSettingTab {
       )
 
     new Setting(advancedSettings)
-      .setName('助手消息模板 / Assistant Message Template')
+      .setName('助手消息模板 / assistant message template')
       .setDesc(
         createFragment((fragment) => {
           fragment.append(
@@ -1030,23 +1020,23 @@ export class OmnivoreSettingTab extends PluginSettingTab {
             this.plugin.settings.wechatMessageTemplate = value || '---\\n## 📅 {{{dateSaved}}}\\n{{{content}}}'
             await this.plugin.saveSettings()
           })
-        text.inputEl.setAttr('rows', 3)
-        text.inputEl.setAttr('cols', 50)
+        text.inputEl.setAttr('rows', 4)
+        text.inputEl.setAttr('cols', 30)
       })
       .addExtraButton((button) => {
         button
           .setIcon('reset')
-          .setTooltip('重置为默认模板 / Reset to default template')
+          .setTooltip('重置为默认模板 / reset to default template')
           .onClick(async () => {
             this.plugin.settings.wechatMessageTemplate = DEFAULT_SETTINGS.wechatMessageTemplate
             await this.plugin.saveSettings()
             this.display()
-            new Notice('助手消息模板已重置 / Assistant message template reset')
+            new Notice('助手消息模板已重置 / assistant message template reset')
           })
       })
 
     new Setting(advancedSettings)
-      .setName('前置元数据模板 / Front Matter Template')
+      .setName('前置元数据模板 / front matter template')
       .setDesc(
         createFragment((fragment) => {
           fragment.append(
@@ -1090,28 +1080,30 @@ export class OmnivoreSettingTab extends PluginSettingTab {
           })
       })
 
-    const help = containerEl.createEl('p')
-    help.innerHTML = `更多信息请关注《笔记同步助手》公众号。`
+    containerEl.createEl('p', {
+      text: '更多信息请关注《笔记同步助手》公众号。',
+    })
 
     // script to make collapsible sections
     const coll = document.getElementsByClassName('omnivore-collapsible')
-    let i
 
-    for (i = 0; i < coll.length; i++) {
-      coll[i].addEventListener('click', function () {
+    for (let i = 0; i < coll.length; i++) {
+      coll[i].addEventListener('click', function (this: HTMLElement) {
         this.classList.toggle('omnivore-active')
-        const content = this.nextElementSibling
-        if (content.style.maxHeight) {
-          content.style.maxHeight = null
-        } else {
-          content.style.maxHeight = 'fit-content'
+        const content = this.nextElementSibling as HTMLElement | null
+        if (content) {
+          content.toggleClass('is-expanded', !content.hasClass('is-expanded'))
         }
       })
     }
   }
 
-  displayBlock(block: HTMLElement, display: boolean) {
-    block.style.display = display ? 'block' : 'none'
+  displayBlock(block: HTMLElement, display: boolean): void {
+    if (display) {
+      block.removeClass('is-hidden')
+    } else {
+      block.addClass('is-hidden')
+    }
   }
 
   private displayVersionInfo(containerEl: HTMLElement) {
@@ -1119,7 +1111,13 @@ export class OmnivoreSettingTab extends PluginSettingTab {
     const versionContainer = containerEl.createEl('div', {
       cls: 'omnivore-version-container',
     })
-    versionContainer.style.cssText = 'margin-bottom: 20px; padding: 15px; border: 1px solid var(--background-modifier-border); border-radius: 8px; background: var(--background-secondary);'
+    versionContainer.setCssStyles({
+      marginBottom: '20px',
+      padding: '15px',
+      border: '1px solid var(--background-modifier-border)',
+      borderRadius: '8px',
+      background: 'var(--background-secondary)',
+    })
 
     // 当前版本显示
     const currentVersion = this.plugin.manifest.version
@@ -1131,17 +1129,22 @@ export class OmnivoreSettingTab extends PluginSettingTab {
       text: `笔记同步助手版本: ${currentVersion}`,
       cls: 'omnivore-current-version',
     })
-    versionText.style.cssText = 'font-weight: bold; margin-right: 15px;'
+    versionText.setCssStyles({
+      fontWeight: 'bold',
+      marginRight: '15px',
+    })
 
     // 检查更新按钮
     const checkButton = versionInfo.createEl('button', {
       text: '检查更新',
       cls: 'mod-cta omnivore-check-update-btn',
     })
-    checkButton.style.cssText = 'margin-left: 10px;'
+    checkButton.setCssStyles({
+      marginLeft: '10px',
+    })
 
     checkButton.onclick = () => {
-      this.checkForUpdates(versionContainer)
+      void this.checkForUpdates(versionContainer)
     }
 
     // 如果已经在检查更新，显示状态
@@ -1195,7 +1198,7 @@ export class OmnivoreSettingTab extends PluginSettingTab {
       log('🔄 API响应数据:', response.json)
 
       if (response.status === 200) {
-        const data = response.json
+        const data = response.json as { version: string; downloadUrl: string }
         this.latestVersionInfo = {
           version: data.version,
           downloadUrl: data.downloadUrl,
@@ -1222,7 +1225,11 @@ export class OmnivoreSettingTab extends PluginSettingTab {
       text: message,
       cls: 'omnivore-version-status',
     })
-    statusEl.style.cssText = 'margin-top: 10px; color: var(--text-muted); font-size: 0.9em;'
+    statusEl.setCssStyles({
+      marginTop: '10px',
+      color: 'var(--text-muted)',
+      fontSize: '0.9em',
+    })
   }
 
   private showVersionStatus(versionContainer: HTMLElement) {
@@ -1255,13 +1262,22 @@ export class OmnivoreSettingTab extends PluginSettingTab {
       const updateContainer = versionContainer.createEl('div', {
         cls: 'omnivore-update-available',
       })
-      updateContainer.style.cssText = 'margin-top: 10px; padding: 10px; background: var(--background-modifier-success); border-radius: 4px;'
+      updateContainer.setCssStyles({
+        marginTop: '10px',
+        padding: '10px',
+        background: 'var(--background-modifier-success)',
+        borderRadius: '4px',
+      })
 
       const updateText = updateContainer.createEl('div', {
         text: `发现新版本 ${latestVersion}！`,
         cls: 'omnivore-update-text',
       })
-      updateText.style.cssText = 'color: var(--text-success); font-weight: bold; margin-bottom: 8px;'
+      updateText.setCssStyles({
+        color: 'var(--text-success)',
+        fontWeight: 'bold',
+        marginBottom: '8px',
+      })
 
       const downloadButton = updateContainer.createEl('button', {
         text: '下载最新版本',
@@ -1401,17 +1417,28 @@ class ConfirmModal extends Modal {
     const { contentEl } = this
 
     contentEl.createEl('h2', { text: this.title })
-    contentEl.createEl('p', {
+    const messageEl = contentEl.createEl('p', {
       text: this.message,
-    }).style.cssText = 'white-space: pre-wrap; margin: 20px 0;'
+    })
+    messageEl.setCssStyles({
+      whiteSpace: 'pre-wrap',
+      margin: '20px 0',
+    })
 
     const buttonContainer = contentEl.createDiv()
-    buttonContainer.style.cssText = 'display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;'
+    buttonContainer.setCssStyles({
+      display: 'flex',
+      justifyContent: 'flex-end',
+      gap: '10px',
+      marginTop: '20px',
+    })
 
     const cancelButton = buttonContainer.createEl('button', {
       text: '取消',
     })
-    cancelButton.style.cssText = 'padding: 5px 15px;'
+    cancelButton.setCssStyles({
+      padding: '5px 15px',
+    })
     cancelButton.onclick = () => {
       this.close()
     }
@@ -1420,9 +1447,11 @@ class ConfirmModal extends Modal {
       text: '确认',
       cls: 'mod-warning',
     })
-    confirmButton.style.cssText = 'padding: 5px 15px;'
-    confirmButton.onclick = async () => {
-      await this.onConfirm()
+    confirmButton.setCssStyles({
+      padding: '5px 15px',
+    })
+    confirmButton.onclick = () => {
+      void this.onConfirm()
       this.close()
     }
   }
