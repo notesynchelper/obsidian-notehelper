@@ -20506,10 +20506,8 @@ var _Logger = class {
 };
 var Logger = _Logger;
 Logger.isDev = isDevelopment2;
-var log = Logger.debug;
-var logInfo = Logger.info;
-var logWarn = Logger.warn;
-var logError = Logger.error;
+var log = (...args) => Logger.debug(...args);
+var logError = (...args) => Logger.error(...args);
 
 // src/settings/local-test.ts
 var LOCAL_TEST_CONFIG = {
@@ -20535,6 +20533,7 @@ var getContentApiUrl = (endpoint) => {
 };
 
 // src/api.ts
+var sleep = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
 var baseUrl = (endpoint) => endpoint.replace(/\/api\/graphql$/, "");
 var searchCustomServerItems = async (endpoint, after, first, query, apiKey) => {
   const searchQuery = `
@@ -20679,7 +20678,8 @@ var downloadFromUrl = async (url) => {
     });
     return response.text;
   } catch (error) {
-    if (error.status === 404) {
+    const reqError = error;
+    if (reqError.status === 404) {
       await sleep(1e3);
       return downloadFromUrl(url);
     }
@@ -20700,7 +20700,7 @@ var fetchContentForItems = async (endpoint, apiKey, items) => {
     }
     item.content = await Promise.race([
       downloadFromUrl(c.downloadUrl),
-      new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 6e5))
+      new Promise((_, reject) => window.setTimeout(() => reject(new Error("Timeout")), 6e5))
     ]);
   }));
 };
@@ -20801,7 +20801,8 @@ var getArticleCount = async (endpoint, apiKey) => {
       headers
     });
     log("\u{1F527} \u83B7\u53D6\u6587\u7AE0\u6570\u91CF\u54CD\u5E94:", response.json);
-    return response.json.count || 0;
+    const data2 = response.json;
+    return data2.count || 0;
   } catch (error) {
     logError("\u83B7\u53D6\u6587\u7AE0\u6570\u91CF\u5931\u8D25:", error);
     throw error;
@@ -20855,8 +20856,9 @@ var fetchVipStatus = async (apiKey) => {
       }
     });
     log("\u{1F527} VIP\u72B6\u6001\u54CD\u5E94:", response.json);
-    if (response.json.success && response.json.data && response.json.data.length > 0) {
-      const vipData = response.json.data[0];
+    const vipResponse = response.json;
+    if (vipResponse.success && vipResponse.data && vipResponse.data.length > 0) {
+      const vipData = vipResponse.data[0];
       const vipType = vipData.vip_type;
       const endTime = vipData.endtime;
       const isValid = endTime ? new Date(endTime) > new Date() : false;
@@ -22274,9 +22276,6 @@ var formatHighlightQuote = (quote, template, highlightRenderOption) => {
   }
   return quote;
 };
-var findFrontMatterIndex = (frontMatter, id) => {
-  return frontMatter.findIndex((fm) => fm.id == id);
-};
 var parseFrontMatterFromContent = (content) => {
   const frontMatter = content.match(/^---\r?\n(.*?)\r?\n---/s);
   if (!frontMatter) {
@@ -22452,7 +22451,7 @@ ${simpleContent}`;
     try {
       const frontMatterParsed = (0, import_obsidian3.parseYaml)(frontMatterTemplateRendered);
       frontMatter = {
-        ...frontMatterParsed,
+        ...frontMatterParsed ?? {},
         ...frontMatter
       };
     } catch (error) {
@@ -24052,8 +24051,10 @@ var Suggest = class {
   constructor(owner, containerEl, scope) {
     this.owner = owner;
     this.containerEl = containerEl;
-    containerEl.on("click", ".suggestion-item", this.onSuggestionClick.bind(this));
-    containerEl.on("mousemove", ".suggestion-item", this.onSuggestionMouseover.bind(this));
+    this.boundOnSuggestionClick = (event, el) => this.onSuggestionClick(event, el);
+    this.boundOnSuggestionMouseover = (event, el) => this.onSuggestionMouseover(event, el);
+    containerEl.on("click", ".suggestion-item", this.boundOnSuggestionClick);
+    containerEl.on("mousemove", ".suggestion-item", this.boundOnSuggestionMouseover);
     scope.register([], "ArrowUp", (event) => {
       if (!event.isComposing) {
         this.setSelectedItem(this.selectedItem - 1, true);
@@ -24118,13 +24119,18 @@ var TextInputSuggest = class {
     this.app = app;
     this.inputEl = inputEl;
     this.scope = new import_obsidian4.Scope();
+    this.boundOnInputChanged = () => this.onInputChanged();
+    this.boundClose = () => {
+      this.close();
+      return false;
+    };
     this.suggestEl = createDiv("suggestion-container");
     const suggestion = this.suggestEl.createDiv("suggestion");
     this.suggest = new Suggest(this, suggestion, this.scope);
-    this.scope.register([], "Escape", this.close.bind(this));
-    this.inputEl.addEventListener("input", this.onInputChanged.bind(this));
-    this.inputEl.addEventListener("focus", this.onInputChanged.bind(this));
-    this.inputEl.addEventListener("blur", this.close.bind(this));
+    this.scope.register([], "Escape", this.boundClose);
+    this.inputEl.addEventListener("input", this.boundOnInputChanged);
+    this.inputEl.addEventListener("focus", this.boundOnInputChanged);
+    this.inputEl.addEventListener("blur", () => this.close());
     this.suggestEl.on("mousedown", ".suggestion-container", (event) => {
       event.preventDefault();
     });
@@ -24212,10 +24218,10 @@ var OmnivoreSettingTab = class extends import_obsidian6.PluginSettingTab {
     }
     const apiKey = this.plugin.settings.apiKey;
     if (!apiKey || apiKey.trim() === "") {
-      this.vipStatusContainer.style.display = "none";
+      this.vipStatusContainer.addClass("is-hidden");
       return;
     }
-    this.vipStatusContainer.style.display = "flex";
+    this.vipStatusContainer.removeClass("is-hidden");
     const vipStatus = await fetchVipStatus(apiKey);
     const statusInfo = this.vipStatusContainer.querySelector(".vip-status-info");
     if (statusInfo) {
@@ -24229,45 +24235,49 @@ var OmnivoreSettingTab = class extends import_obsidian6.PluginSettingTab {
       qrLabel.textContent = qrType === "group" ? "\u52A0\u5165\u4EA4\u6D41\u7FA4" : "\u8D2D\u4E70\u9AD8\u7EA7\u6743\u76CA";
     }
   }
-  async display() {
+  display() {
     const { containerEl } = this;
     containerEl.empty();
     this.displayVersionInfo(containerEl);
-    setTimeout(async () => {
-      await this.checkAndPerformMigration();
+    setTimeout(() => {
+      void this.checkAndPerformMigration();
     }, 500);
     new import_obsidian6.Setting(containerEl).setName("\u5BC6\u94A5").setDesc("\u8BF7\u5173\u6CE8\u300A\u7B14\u8BB0\u540C\u6B65\u52A9\u624B\u300B\u516C\u4F17\u53F7\u83B7\u53D6\u5BC6\u94A5").addText((text) => text.setPlaceholder("\u8F93\u5165\u60A8\u7684\u5BC6\u94A5").setValue(this.plugin.settings.apiKey).onChange(async (value) => {
       this.plugin.settings.apiKey = value;
       await this.plugin.saveSettings();
       await this.updateVipStatus();
     }));
-    containerEl.createEl("h3", { text: "\u4F1A\u5458\u4E2D\u5FC3" });
+    new import_obsidian6.Setting(containerEl).setName("\u4F1A\u5458\u4E2D\u5FC3").setHeading().addButton((button) => {
+      button.setButtonText("\u5237\u65B0").onClick(async () => {
+        await this.updateVipStatus();
+      });
+    });
     this.vipStatusContainer = containerEl.createEl("div", {
       cls: "vip-status-container"
     });
     const statusContainer = this.vipStatusContainer.createEl("div", {
       cls: "vip-status-left"
     });
-    const statusInfo = statusContainer.createEl("div", {
+    statusContainer.createEl("div", {
       cls: "vip-status-info",
       text: "\u52A0\u8F7D\u4E2D..."
     });
-    const qrLabel = statusContainer.createEl("div", {
+    statusContainer.createEl("div", {
       cls: "vip-status-qr-label",
       text: "\u52A0\u8F7D\u4E2D..."
     });
     const qrContainer = this.vipStatusContainer.createEl("div", {
       cls: "vip-status-qr"
     });
-    const qrImg = qrContainer.createEl("img", {
+    qrContainer.createEl("img", {
       attr: {
         alt: "\u4E8C\u7EF4\u7801"
       }
     });
-    this.updateVipStatus();
-    containerEl.createEl("h3", { text: "\u6587\u7AE0\u7BA1\u7406" });
-    const articleCountSetting = new import_obsidian6.Setting(containerEl).setName("\u4E91\u7A7A\u95F4\u5185\u5BB9\u6570\u91CF / Cloud Space Content Count").setDesc(createFragment((fragment) => {
-      fragment.append("\u663E\u793A\u4E91\u7A7A\u95F4\u4E2D\u6587\u7AE0\u548C\u6D88\u606F\u7684\u603B\u6570\u91CF\u3002\u6D88\u606F\u5408\u5E76\u6A21\u5F0F\u9ED8\u8BA4\u5F00\u542F\uFF0C\u4E00\u5929\u7684\u6D88\u606F\u4F1A\u5408\u5E76\u5230\u540C\u4E00\u4E2A\u7B14\u8BB0\u4E2D\u3002", fragment.createEl("br"), "Shows the total count of articles and messages in cloud space. Message merge mode is enabled by default, messages from the same day are merged into a single note.", fragment.createEl("br"), fragment.createEl("br"), fragment.createEl("strong", { text: "\u5F53\u524D\u6570\u91CF / Current: --" }));
+    void this.updateVipStatus();
+    new import_obsidian6.Setting(containerEl).setName("\u6587\u7AE0\u7BA1\u7406").setHeading();
+    const articleCountSetting = new import_obsidian6.Setting(containerEl).setName("\u4E91\u7A7A\u95F4\u5185\u5BB9\u6570\u91CF / cloud space content count").setDesc(createFragment((fragment) => {
+      fragment.append("\u663E\u793A\u4E91\u7A7A\u95F4\u4E2D\u6587\u7AE0\u548C\u6D88\u606F\u7684\u603B\u6570\u91CF\u3002\u6D88\u606F\u5408\u5E76\u6A21\u5F0F\u9ED8\u8BA4\u5F00\u542F\uFF0C\u4E00\u5929\u7684\u6D88\u606F\u4F1A\u5408\u5E76\u5230\u540C\u4E00\u4E2A\u7B14\u8BB0\u4E2D\u3002", fragment.createEl("br"), "Shows the total count of articles and messages in cloud space. Message merge mode is enabled by default, messages from the same day are merged into a single note.", fragment.createEl("br"), fragment.createEl("br"), fragment.createEl("strong", { text: "\u5F53\u524D\u6570\u91CF / current: --" }));
     }));
     articleCountSetting.addButton((button) => {
       button.setButtonText("\u5237\u65B0").setCta().onClick(async () => {
@@ -24276,7 +24286,7 @@ var OmnivoreSettingTab = class extends import_obsidian6.PluginSettingTab {
           button.setButtonText("\u5237\u65B0\u4E2D...");
           const count = await getArticleCount(this.plugin.settings.endpoint, this.plugin.settings.apiKey);
           articleCountSetting.setDesc(createFragment((fragment) => {
-            fragment.append("\u663E\u793A\u4E91\u7A7A\u95F4\u4E2D\u6587\u7AE0\u548C\u6D88\u606F\u7684\u603B\u6570\u91CF\u3002\u6D88\u606F\u5408\u5E76\u6A21\u5F0F\u9ED8\u8BA4\u5F00\u542F\uFF0C\u4E00\u5929\u7684\u6D88\u606F\u4F1A\u5408\u5E76\u5230\u540C\u4E00\u4E2A\u7B14\u8BB0\u4E2D\u3002", fragment.createEl("br"), "Shows the total count of articles and messages in cloud space. Message merge mode is enabled by default, messages from the same day are merged into a single note.", fragment.createEl("br"), fragment.createEl("br"), fragment.createEl("strong", { text: `\u5F53\u524D\u6570\u91CF / Current: ${count}` }));
+            fragment.append("\u663E\u793A\u4E91\u7A7A\u95F4\u4E2D\u6587\u7AE0\u548C\u6D88\u606F\u7684\u603B\u6570\u91CF\u3002\u6D88\u606F\u5408\u5E76\u6A21\u5F0F\u9ED8\u8BA4\u5F00\u542F\uFF0C\u4E00\u5929\u7684\u6D88\u606F\u4F1A\u5408\u5E76\u5230\u540C\u4E00\u4E2A\u7B14\u8BB0\u4E2D\u3002", fragment.createEl("br"), "Shows the total count of articles and messages in cloud space. Message merge mode is enabled by default, messages from the same day are merged into a single note.", fragment.createEl("br"), fragment.createEl("br"), fragment.createEl("strong", { text: `\u5F53\u524D\u6570\u91CF / current: ${count}` }));
           }));
           new import_obsidian6.Notice(`\u5F53\u524D\u6709 ${count} \u7BC7\u5185\u5BB9`);
         } catch (error) {
@@ -24299,17 +24309,19 @@ var OmnivoreSettingTab = class extends import_obsidian6.PluginSettingTab {
             const result = await clearAllArticles(this.plugin.settings.endpoint, this.plugin.settings.apiKey);
             new import_obsidian6.Notice(`\u5DF2\u6E05\u7A7A ${result.deletedCount} \u7BC7\u5185\u5BB9`);
             articleCountSetting.setDesc(createFragment((fragment) => {
-              fragment.append("\u663E\u793A\u4E91\u7A7A\u95F4\u4E2D\u6587\u7AE0\u548C\u6D88\u606F\u7684\u603B\u6570\u91CF\u3002\u6D88\u606F\u5408\u5E76\u6A21\u5F0F\u9ED8\u8BA4\u5F00\u542F\uFF0C\u4E00\u5929\u7684\u6D88\u606F\u4F1A\u5408\u5E76\u5230\u540C\u4E00\u4E2A\u7B14\u8BB0\u4E2D\u3002", fragment.createEl("br"), "Shows the total count of articles and messages in cloud space. Message merge mode is enabled by default, messages from the same day are merged into a single note.", fragment.createEl("br"), fragment.createEl("br"), fragment.createEl("strong", { text: "\u5F53\u524D\u6570\u91CF / Current: 0" }));
+              fragment.append("\u663E\u793A\u4E91\u7A7A\u95F4\u4E2D\u6587\u7AE0\u548C\u6D88\u606F\u7684\u603B\u6570\u91CF\u3002\u6D88\u606F\u5408\u5E76\u6A21\u5F0F\u9ED8\u8BA4\u5F00\u542F\uFF0C\u4E00\u5929\u7684\u6D88\u606F\u4F1A\u5408\u5E76\u5230\u540C\u4E00\u4E2A\u7B14\u8BB0\u4E2D\u3002", fragment.createEl("br"), "Shows the total count of articles and messages in cloud space. Message merge mode is enabled by default, messages from the same day are merged into a single note.", fragment.createEl("br"), fragment.createEl("br"), fragment.createEl("strong", { text: "\u5F53\u524D\u6570\u91CF / current: 0" }));
             }));
-            setTimeout(async () => {
-              try {
-                const count = await getArticleCount(this.plugin.settings.endpoint, this.plugin.settings.apiKey);
-                articleCountSetting.setDesc(createFragment((fragment) => {
-                  fragment.append("\u663E\u793A\u4E91\u7A7A\u95F4\u4E2D\u6587\u7AE0\u548C\u6D88\u606F\u7684\u603B\u6570\u91CF\u3002\u6D88\u606F\u5408\u5E76\u6A21\u5F0F\u9ED8\u8BA4\u5F00\u542F\uFF0C\u4E00\u5929\u7684\u6D88\u606F\u4F1A\u5408\u5E76\u5230\u540C\u4E00\u4E2A\u7B14\u8BB0\u4E2D\u3002", fragment.createEl("br"), "Shows the total count of articles and messages in cloud space. Message merge mode is enabled by default, messages from the same day are merged into a single note.", fragment.createEl("br"), fragment.createEl("br"), fragment.createEl("strong", { text: `\u5F53\u524D\u6570\u91CF / Current: ${count}` }));
-                }));
-              } catch (error) {
-                logError("\u5237\u65B0\u6587\u7AE0\u6570\u91CF\u5931\u8D25:", error);
-              }
+            setTimeout(() => {
+              void (async () => {
+                try {
+                  const count = await getArticleCount(this.plugin.settings.endpoint, this.plugin.settings.apiKey);
+                  articleCountSetting.setDesc(createFragment((fragment) => {
+                    fragment.append("\u663E\u793A\u4E91\u7A7A\u95F4\u4E2D\u6587\u7AE0\u548C\u6D88\u606F\u7684\u603B\u6570\u91CF\u3002\u6D88\u606F\u5408\u5E76\u6A21\u5F0F\u9ED8\u8BA4\u5F00\u542F\uFF0C\u4E00\u5929\u7684\u6D88\u606F\u4F1A\u5408\u5E76\u5230\u540C\u4E00\u4E2A\u7B14\u8BB0\u4E2D\u3002", fragment.createEl("br"), "Shows the total count of articles and messages in cloud space. Message merge mode is enabled by default, messages from the same day are merged into a single note.", fragment.createEl("br"), fragment.createEl("br"), fragment.createEl("strong", { text: `\u5F53\u524D\u6570\u91CF / current: ${count}` }));
+                  }));
+                } catch (error) {
+                  logError("\u5237\u65B0\u6587\u7AE0\u6570\u91CF\u5931\u8D25:", error);
+                }
+              })();
             }, 1e3);
           } catch (error) {
             logError("\u6E05\u7A7A\u6587\u7AE0\u5931\u8D25:", error);
@@ -24322,7 +24334,7 @@ var OmnivoreSettingTab = class extends import_obsidian6.PluginSettingTab {
         confirmModal.open();
       });
     });
-    containerEl.createEl("h3", { text: "\u67E5\u8BE2" });
+    new import_obsidian6.Setting(containerEl).setName("\u67E5\u8BE2").setHeading();
     new import_obsidian6.Setting(containerEl).setName("\u7B5B\u9009\u5668").setDesc('\u76EE\u524D\u53EA\u652F\u6301\u540C\u6B65\u6240\u6709\u6587\u7AE0\u3002\u53EF\u4EE5\u901A\u8FC7\u8BBE\u7F6E"\u6700\u540E\u540C\u6B65"\u65F6\u95F4\u6765\u63A7\u5236\u540C\u6B65\u8303\u56F4\uFF0C\u53EA\u4F1A\u540C\u6B65\u5728\u8BE5\u65F6\u95F4\u70B9\u4E4B\u540E\u4FDD\u5B58\u6216\u66F4\u65B0\u7684\u6587\u7AE0\u3002').addDropdown((dropdown) => {
       dropdown.addOptions(Filter);
       dropdown.setValue(this.plugin.settings.filter).onChange(async (value) => {
@@ -24338,15 +24350,21 @@ var OmnivoreSettingTab = class extends import_obsidian6.PluginSettingTab {
       this.plugin.settings.syncAt = "";
       await this.plugin.saveSettings();
     }));
-    containerEl.createEl("h3", { text: "\u540C\u6B65" });
+    new import_obsidian6.Setting(containerEl).setName("\u540C\u6B65").setHeading();
     new import_obsidian6.Setting(containerEl).setName("\u542F\u52A8\u65F6\u540C\u6B65").setDesc("\u52FE\u9009\u6B64\u9009\u9879\u5728\u5E94\u7528\u52A0\u8F7D\u65F6\u81EA\u52A8\u540C\u6B65").addToggle((toggle) => toggle.setValue(this.plugin.settings.syncOnStart).onChange(async (value) => {
       this.plugin.settings.syncOnStart = value;
       await this.plugin.saveSettings();
     }));
-    new import_obsidian6.Setting(containerEl).setName("\u9891\u7387").setDesc("\u8F93\u5165\u81EA\u52A8\u540C\u6B65\u7684\u9891\u7387\uFF08\u5206\u949F\uFF09\u30020 \u8868\u793A\u624B\u52A8\u540C\u6B65").addText((text) => text.setPlaceholder("\u8F93\u5165\u9891\u7387").setValue(this.plugin.settings.frequency.toString()).onChange(async (value) => {
+    new import_obsidian6.Setting(containerEl).setName("\u9891\u7387 / frequency").setDesc(createFragment((fragment) => {
+      fragment.append("\u8F93\u5165\u81EA\u52A8\u540C\u6B65\u7684\u9891\u7387\uFF08\u79D2\uFF09\u30020 \u8868\u793A\u624B\u52A8\u540C\u6B65\uFF0C\u6700\u4F4E 15 \u79D2", fragment.createEl("br"), fragment.createEl("br"), "\u5E38\u7528\u9891\u7387\u793A\u4F8B:", fragment.createEl("br"), "\u2022 15 \u79D2\uFF08\u6700\u5FEB\uFF09", fragment.createEl("br"), "\u2022 60 \u79D2\uFF081\u5206\u949F\uFF09", fragment.createEl("br"), "\u2022 300 \u79D2\uFF085\u5206\u949F\uFF09", fragment.createEl("br"), "\u2022 1800 \u79D2\uFF0830\u5206\u949F\uFF09");
+    })).addText((text) => text.setPlaceholder("\u8F93\u5165\u9891\u7387\uFF08\u79D2\uFF09").setValue(this.plugin.settings.frequency.toString()).onChange(async (value) => {
       const frequency = parseInt(value);
       if (isNaN(frequency)) {
         new import_obsidian6.Notice("\u9891\u7387\u5FC5\u987B\u662F\u6B63\u6574\u6570");
+        return;
+      }
+      if (frequency > 0 && frequency < 15) {
+        new import_obsidian6.Notice("\u540C\u6B65\u9891\u7387\u4E0D\u80FD\u4F4E\u4E8E 15 \u79D2");
         return;
       }
       this.plugin.settings.frequency = frequency;
@@ -24357,87 +24375,86 @@ var OmnivoreSettingTab = class extends import_obsidian6.PluginSettingTab {
       this.plugin.settings.syncAt = value;
       await this.plugin.saveSettings();
     }));
-    new import_obsidian6.Setting(containerEl).setName("\u6D88\u606F\u5408\u5E76\u6A21\u5F0F / Message Merge Mode").setDesc(createFragment((fragment) => {
+    new import_obsidian6.Setting(containerEl).setName("\u6D88\u606F\u5408\u5E76\u6A21\u5F0F / message merge mode").setDesc(createFragment((fragment) => {
       fragment.append("\u9009\u62E9\u6587\u7AE0\u548C\u6D88\u606F\u7684\u5408\u5E76\u65B9\u5F0F / Select how articles and messages are merged:", fragment.createEl("br"), fragment.createEl("br"), fragment.createEl("strong", { text: "\u4E0D\u5408\u5E76" }), ": \u6BCF\u7BC7\u6587\u7AE0\u72EC\u7ACB\u6587\u4EF6\uFF08\u6807\u9898\u76F8\u540C\u65F6\u81EA\u52A8\u6DFB\u52A0\u6570\u5B57\u540E\u7F00\uFF09 / Each article in separate file", fragment.createEl("br"), fragment.createEl("strong", { text: "\u4EC5\u5408\u5E76\u6D88\u606F" }), ": \u4F01\u5FAE\u6D88\u606F\u6309\u65E5\u671F\u5408\u5E76\uFF0C\u666E\u901A\u6587\u7AE0\u72EC\u7ACB\u4FDD\u5B58\uFF08\u63A8\u8350\uFF09/ Merge WeChat messages by date, keep articles separate (Recommended)", fragment.createEl("br"), fragment.createEl("strong", { text: "\u5408\u5E76\u6240\u6709" }), ": \u540C\u540D\u6587\u7AE0\u548C\u6D88\u606F\u90FD\u5408\u5E76\u5230\u4E00\u4E2A\u6587\u4EF6 / Merge all articles and messages with same name");
-    })).addDropdown((dropdown) => dropdown.addOption("none" /* NONE */, "\u4E0D\u5408\u5E76 / No Merge").addOption("messages" /* MESSAGES */, "\u4EC5\u5408\u5E76\u6D88\u606F / Merge Messages Only").addOption("all" /* ALL */, "\u5408\u5E76\u6240\u6709 / Merge All").setValue(this.plugin.settings.mergeMode).onChange(async (value) => {
+    })).addDropdown((dropdown) => dropdown.addOption("none" /* NONE */, "\u4E0D\u5408\u5E76 / no merge").addOption("messages" /* MESSAGES */, "\u4EC5\u5408\u5E76\u6D88\u606F / merge messages only").addOption("all" /* ALL */, "\u5408\u5E76\u6240\u6709 / merge all").setValue(this.plugin.settings.mergeMode).onChange(async (value) => {
       this.plugin.settings.mergeMode = value;
       await this.plugin.saveSettings();
       this.display();
     }));
     if (this.plugin.settings.mergeMode !== "none" /* NONE */) {
-      new import_obsidian6.Setting(containerEl).setName("\u5355\u6587\u4EF6\u540D\u79F0\u6A21\u677F / Single File Name Template").setDesc(createFragment((fragment) => {
+      new import_obsidian6.Setting(containerEl).setName("\u5355\u6587\u4EF6\u540D\u79F0\u6A21\u677F / single file name template").setDesc(createFragment((fragment) => {
         fragment.append("\u8BBE\u7F6E\u5408\u5E76\u6587\u4EF6\u7684\u540D\u79F0\u6A21\u677F\u3002\u4F7F\u7528 ", fragment.createEl("code", { text: "{{{date}}}" }), " \u4F5C\u4E3A\u65E5\u671F\u53D8\u91CF / Set the name template for merged files. Use ", fragment.createEl("code", { text: "{{{date}}}" }), " as date variable", fragment.createEl("br"), fragment.createEl("br"), "\u793A\u4F8B / Examples:", fragment.createEl("br"), "\u2022 ", fragment.createEl("code", { text: "\u540C\u6B65\u52A9\u624B_{{{date}}}" }), fragment.createEl("br"), "\u2022 ", fragment.createEl("code", { text: "\u4F01\u5FAE\u6D88\u606F_{{{date}}}" }));
       })).addText((text) => text.setPlaceholder("\u540C\u6B65\u52A9\u624B_{{{date}}}").setValue(this.plugin.settings.singleFileName).onChange(async (value) => {
         this.plugin.settings.singleFileName = value || "\u540C\u6B65\u52A9\u624B_{{{date}}}";
         await this.plugin.saveSettings();
       }));
-      new import_obsidian6.Setting(containerEl).setName("\u5355\u6587\u4EF6\u65E5\u671F\u683C\u5F0F / Single File Date Format").setDesc(createFragment((fragment) => {
-        fragment.append("\u8BBE\u7F6E\u5355\u6587\u4EF6\u540D\u79F0\u4E2D ", fragment.createEl("code", { text: "{{{date}}}" }), " \u53D8\u91CF\u7684\u65E5\u671F\u683C\u5F0F\u3002\u683C\u5F0F\u53C2\u8003 / Specify the date format for ", fragment.createEl("code", { text: "{{{date}}}" }), " variable in single file name. Format ", fragment.createEl("a", {
-          text: "reference",
-          href: "https://moment.github.io/luxon/#/formatting?id=table-of-tokens"
-        }), fragment.createEl("br"), fragment.createEl("br"), "\u5E38\u7528\u683C\u5F0F / Common formats:", fragment.createEl("br"), "\u2022 ", fragment.createEl("code", { text: "yyyy-MM-dd" }), " \u2192 2025-01-23", fragment.createEl("br"), "\u2022 ", fragment.createEl("code", { text: "yyyyMMdd" }), " \u2192 20250123", fragment.createEl("br"), "\u2022 ", fragment.createEl("code", { text: "yyyy/MM/dd" }), " \u2192 2025/01/23", fragment.createEl("br"), "\u2022 ", fragment.createEl("code", { text: "yyyy\u5E74MM\u6708dd\u65E5" }), " \u2192 2025\u5E7401\u670823\u65E5");
-      })).addText((text) => text.setPlaceholder("yyyy-MM-dd").setValue(this.plugin.settings.singleFileDateFormat).onChange(async (value) => {
+      new import_obsidian6.Setting(containerEl).setName("\u5355\u6587\u4EF6\u65E5\u671F\u683C\u5F0F / single file date format").setDesc(createFragment((fragment) => {
+        fragment.append("\u8BBE\u7F6E\u5355\u6587\u4EF6\u540D\u79F0\u4E2D\u65E5\u671F\u53D8\u91CF\u7684\u683C\u5F0F\u3002\u53C2\u8003 / Specify the date format for the date variable in single file name. Reference format documentation online", fragment.createEl("br"), fragment.createEl("br"), "\u5E38\u7528\u683C\u5F0F\u793A\u4F8B / common format examples below:", fragment.createEl("br"));
+        const examples = [
+          { format: "yyyy-MM-dd", sample: "2025-01-23" },
+          { format: "yyyyMMdd", sample: "20250123" },
+          { format: "yyyy/MM/dd", sample: "2025/01/23" },
+          { format: "yyyy\u5E74MM\u6708dd\u65E5", sample: "2025\u5E7401\u670823\u65E5" }
+        ];
+        examples.forEach((example, index) => {
+          if (index > 0) {
+            fragment.append(fragment.createEl("br"));
+          }
+          fragment.append("\u2022 ", fragment.createEl("code", { text: example.format }), ` (example: ${example.sample})`);
+        });
+      })).addText((text) => text.setPlaceholder("date format: yyyy-MM-dd").setValue(this.plugin.settings.singleFileDateFormat).onChange(async (value) => {
         this.plugin.settings.singleFileDateFormat = value || "yyyy-MM-dd";
         await this.plugin.saveSettings();
       }));
     }
-    new import_obsidian6.Setting(containerEl).setName("\u6587\u4EF6\u5939 / Folder").setDesc("\u8F93\u5165\u6570\u636E\u5B58\u50A8\u7684\u6587\u4EF6\u5939\u8DEF\u5F84\u3002\u53EF\u5728\u6587\u4EF6\u5939\u540D\u79F0\u4E2D\u4F7F\u7528 {{{title}}}\u3001{{{dateSaved}}} / Enter the folder where the data will be stored. {{{title}}}, {{{dateSaved}}} could be used in the folder name").addSearch((search) => {
+    new import_obsidian6.Setting(containerEl).setName("\u6587\u4EF6\u5939 / folder").setDesc("\u8F93\u5165\u6570\u636E\u5B58\u50A8\u7684\u6587\u4EF6\u5939\u8DEF\u5F84\u3002\u53EF\u5728\u6587\u4EF6\u5939\u540D\u79F0\u4E2D\u4F7F\u7528 {{{title}}}\u3001{{{dateSaved}}} / Enter the folder where the data will be stored. {{{title}}}, {{{dateSaved}}} could be used in the folder name").addSearch((search) => {
       new FolderSuggest(this.app, search.inputEl);
       search.setPlaceholder("Enter the folder").setValue(this.plugin.settings.folder).onChange(async (value) => {
         this.plugin.settings.folder = value;
         await this.plugin.saveSettings();
       });
     });
-    new import_obsidian6.Setting(containerEl).setName("\u6587\u4EF6\u5939\u65E5\u671F\u683C\u5F0F / Folder Date Format").setDesc(createFragment((fragment) => {
-      fragment.append("\u5982\u679C\u6587\u4EF6\u5939\u540D\u79F0\u4E2D\u4F7F\u7528\u65E5\u671F\uFF0C\u8BF7\u6307\u5B9A\u65E5\u671F\u683C\u5F0F\u3002\u683C\u5F0F\u53C2\u8003 / If date is used as part of folder name, specify the format date for use. Format ", fragment.createEl("a", {
-        text: "reference",
-        href: "https://moment.github.io/luxon/#/formatting?id=table-of-tokens"
-      }));
-    })).addText((text) => text.setPlaceholder("yyyy-MM-dd").setValue(this.plugin.settings.folderDateFormat).onChange(async (value) => {
+    new import_obsidian6.Setting(containerEl).setName("\u6587\u4EF6\u5939\u65E5\u671F\u683C\u5F0F / folder date format").setDesc("specify the date format if date is used. Example: yyyy-MM-dd").addText((text) => text.setPlaceholder("date format").setValue(this.plugin.settings.folderDateFormat).onChange(async (value) => {
       this.plugin.settings.folderDateFormat = value;
       await this.plugin.saveSettings();
     }));
-    new import_obsidian6.Setting(containerEl).setName("\u9644\u4EF6\u6587\u4EF6\u5939 / Attachment Folder").setDesc("\u8F93\u5165\u9644\u4EF6\u4E0B\u8F7D\u7684\u6587\u4EF6\u5939\u8DEF\u5F84\u3002\u53EF\u5728\u6587\u4EF6\u5939\u540D\u79F0\u4E2D\u4F7F\u7528 {{{title}}}\u3001{{{dateSaved}}} / Enter the folder where the attachment will be downloaded to. {{{title}}}, {{{dateSaved}}} could be used in the folder name").addSearch((search) => {
+    new import_obsidian6.Setting(containerEl).setName("\u9644\u4EF6\u6587\u4EF6\u5939 / attachment folder").setDesc("\u8F93\u5165\u9644\u4EF6\u4E0B\u8F7D\u7684\u6587\u4EF6\u5939\u8DEF\u5F84\u3002\u53EF\u5728\u6587\u4EF6\u5939\u540D\u79F0\u4E2D\u4F7F\u7528 {{{title}}}\u3001{{{dateSaved}}} / Enter the folder where the attachment will be downloaded to. {{{title}}}, {{{dateSaved}}} could be used in the folder name").addSearch((search) => {
       new FolderSuggest(this.app, search.inputEl);
       search.setPlaceholder("Enter the attachment folder").setValue(this.plugin.settings.attachmentFolder).onChange(async (value) => {
         this.plugin.settings.attachmentFolder = value;
         await this.plugin.saveSettings();
       });
     });
-    new import_obsidian6.Setting(containerEl).setName("\u6587\u4EF6\u540D / Filename").setDesc("\u8F93\u5165\u6570\u636E\u5B58\u50A8\u7684\u6587\u4EF6\u540D\u3002\u53EF\u5728\u6587\u4EF6\u540D\u4E2D\u4F7F\u7528 {{id}}\u3001{{{title}}}\u3001{{{dateSaved}}} / Enter the filename where the data will be stored. {{id}}, {{{title}}}, {{{dateSaved}}} could be used in the filename").addText((text) => text.setPlaceholder("Enter the filename").setValue(this.plugin.settings.filename).onChange(async (value) => {
+    new import_obsidian6.Setting(containerEl).setName("\u6587\u4EF6\u540D / filename").setDesc("\u8F93\u5165\u6570\u636E\u5B58\u50A8\u7684\u6587\u4EF6\u540D\u3002\u53EF\u5728\u6587\u4EF6\u540D\u4E2D\u4F7F\u7528 {{id}}\u3001{{{title}}}\u3001{{{dateSaved}}} / Enter the filename where the data will be stored. {{id}}, {{{title}}}, {{{dateSaved}}} could be used in the filename").addText((text) => text.setPlaceholder("Enter the filename").setValue(this.plugin.settings.filename).onChange(async (value) => {
       this.plugin.settings.filename = value;
       await this.plugin.saveSettings();
     }));
-    new import_obsidian6.Setting(containerEl).setName("\u6587\u4EF6\u540D\u65E5\u671F\u683C\u5F0F / Filename Date Format").setDesc(createFragment((fragment) => {
-      fragment.append("\u5982\u679C\u6587\u4EF6\u540D\u4E2D\u4F7F\u7528\u65E5\u671F\uFF0C\u8BF7\u6307\u5B9A\u65E5\u671F\u683C\u5F0F\u3002\u683C\u5F0F\u53C2\u8003 / If date is used as part of file name, specify the format date for use. Format ", fragment.createEl("a", {
-        text: "reference",
-        href: "https://moment.github.io/luxon/#/formatting?id=table-of-tokens"
-      }));
-    })).addText((text) => text.setPlaceholder("yyyy-MM-dd").setValue(this.plugin.settings.filenameDateFormat).onChange(async (value) => {
+    new import_obsidian6.Setting(containerEl).setName("\u6587\u4EF6\u540D\u65E5\u671F\u683C\u5F0F / filename date format").setDesc("specify the date format for the filename if date is used. Reference format documentation online.").addText((text) => text.setPlaceholder("yyyy-MM-dd").setValue(this.plugin.settings.filenameDateFormat).onChange(async (value) => {
       this.plugin.settings.filenameDateFormat = value;
       await this.plugin.saveSettings();
     }));
-    containerEl.createEl("h3", { text: "\u56FE\u7247\u5904\u7406 / Image Processing" });
-    new import_obsidian6.Setting(containerEl).setName("\u56FE\u7247\u5904\u7406\u6A21\u5F0F / Image Processing Mode").setDesc(createFragment((fragment) => {
+    new import_obsidian6.Setting(containerEl).setName("\u56FE\u7247\u5904\u7406 / image processing").setHeading();
+    new import_obsidian6.Setting(containerEl).setName("\u56FE\u7247\u5904\u7406\u6A21\u5F0F / image processing mode").setDesc(createFragment((fragment) => {
       fragment.append("\u9009\u62E9\u5982\u4F55\u5904\u7406\u7B14\u8BB0\u4E2D\u7684\u56FE\u7247 / Choose how to process images in notes", fragment.createEl("br"), fragment.createEl("br"), "\u2022 ", fragment.createEl("strong", { text: "\u7F13\u5B58\u5230\u672C\u5730" }), ": \u4E0B\u8F7D\u56FE\u7247\u5230\u672C\u5730\u5B58\u50A8 / Download images to local storage", fragment.createEl("br"), "\u2022 ", fragment.createEl("strong", { text: "\u4FDD\u7559\u539F\u59CB\u94FE\u63A5" }), ": \u4FDD\u6301\u7F51\u7EDC\u56FE\u7247\u94FE\u63A5\u4E0D\u53D8 / Keep remote image links", fragment.createEl("br"), "\u2022 ", fragment.createEl("strong", { text: "\u4E0D\u52A0\u8F7D\u56FE\u7247" }), ": \u6CE8\u91CA\u6389\u56FE\u7247\u8BED\u6CD5\uFF0C\u4E0D\u663E\u793A\u56FE\u7247 / Comment out image syntax");
-    })).addDropdown((dropdown) => dropdown.addOption("local" /* LOCAL */, "\u7F13\u5B58\u5230\u672C\u5730 / Download to Local").addOption("remote" /* REMOTE */, "\u4FDD\u7559\u539F\u59CB\u94FE\u63A5 / Keep Remote Links").addOption("disabled" /* DISABLED */, "\u4E0D\u52A0\u8F7D\u56FE\u7247 / Disable Images").setValue(this.plugin.settings.imageMode).onChange(async (value) => {
+    })).addDropdown((dropdown) => dropdown.addOption("local" /* LOCAL */, "\u7F13\u5B58\u5230\u672C\u5730 / download to local").addOption("remote" /* REMOTE */, "\u4FDD\u7559\u539F\u59CB\u94FE\u63A5 / keep remote links").addOption("disabled" /* DISABLED */, "\u4E0D\u52A0\u8F7D\u56FE\u7247 / disable images").setValue(this.plugin.settings.imageMode).onChange(async (value) => {
       this.plugin.settings.imageMode = value;
       await this.plugin.saveSettings();
       this.display();
     }));
     if (this.plugin.settings.imageMode === "local" /* LOCAL */) {
-      new import_obsidian6.Setting(containerEl).setName("PNG\u8F6CJPEG / PNG to JPEG").setDesc("\u52FE\u9009\u6B64\u9009\u9879\u5C06PNG\u56FE\u7247\u8F6C\u6362\u4E3AJPEG\u683C\u5F0F\u4EE5\u8282\u7701\u7A7A\u95F4\u3002\u6CE8\u610F\uFF1A\u4F1A\u4E22\u5931\u900F\u660E\u5EA6\u4FE1\u606F / Check this box to convert PNG images to JPEG format to save space. Note: transparency will be lost").addToggle((toggle) => toggle.setValue(this.plugin.settings.enablePngToJpeg).onChange(async (value) => {
+      new import_obsidian6.Setting(containerEl).setName("convert PNG to JPEG / convert png to jpeg").setDesc("\u52FE\u9009\u6B64\u9009\u9879\u5C06PNG\u56FE\u7247\u8F6C\u6362\u4E3AJPEG\u683C\u5F0F\u4EE5\u8282\u7701\u7A7A\u95F4\u3002\u6CE8\u610F\uFF1A\u4F1A\u4E22\u5931\u900F\u660E\u5EA6\u4FE1\u606F / check this box to convert PNG images to JPEG format to save space. Note: transparency will be lost").addToggle((toggle) => toggle.setValue(this.plugin.settings.enablePngToJpeg).onChange(async (value) => {
         this.plugin.settings.enablePngToJpeg = value;
         await this.plugin.saveSettings();
         this.display();
       }));
       if (this.plugin.settings.enablePngToJpeg) {
-        new import_obsidian6.Setting(containerEl).setName("JPEG\u8D28\u91CF / JPEG Quality").setDesc("\u8BBE\u7F6EJPEG\u538B\u7F29\u8D28\u91CF\uFF080-100\uFF09\uFF0C\u9ED8\u8BA485\u3002\u6570\u503C\u8D8A\u9AD8\u8D28\u91CF\u8D8A\u597D\u4F46\u6587\u4EF6\u8D8A\u5927 / Set JPEG compression quality (0-100), default 85. Higher values mean better quality but larger files").addSlider((slider) => slider.setLimits(0, 100, 5).setValue(this.plugin.settings.jpegQuality).setDynamicTooltip().onChange(async (value) => {
+        new import_obsidian6.Setting(containerEl).setName("JPEG\u8D28\u91CF / JPEG quality").setDesc("\u8BBE\u7F6EJPEG\u538B\u7F29\u8D28\u91CF\uFF080-100\uFF09\uFF0C\u9ED8\u8BA485\u3002\u6570\u503C\u8D8A\u9AD8\u8D28\u91CF\u8D8A\u597D\u4F46\u6587\u4EF6\u8D8A\u5927 / set JPEG compression quality (0-100), default 85. Higher values mean better quality but larger files").addSlider((slider) => slider.setLimits(0, 100, 5).setValue(this.plugin.settings.jpegQuality).setDynamicTooltip().onChange(async (value) => {
           this.plugin.settings.jpegQuality = value;
           await this.plugin.saveSettings();
         }));
       }
-      new import_obsidian6.Setting(containerEl).setName("\u4E0B\u8F7D\u91CD\u8BD5\u6B21\u6570 / Download Retries").setDesc("\u8BBE\u7F6E\u56FE\u7247\u4E0B\u8F7D\u5931\u8D25\u65F6\u7684\u91CD\u8BD5\u6B21\u6570\uFF0C\u9ED8\u8BA43\u6B21 / Set the number of retries when image download fails, default 3").addText((text) => text.setPlaceholder("3").setValue(this.plugin.settings.imageDownloadRetries.toString()).onChange(async (value) => {
+      new import_obsidian6.Setting(containerEl).setName("\u4E0B\u8F7D\u91CD\u8BD5\u6B21\u6570 / download retries").setDesc("\u8BBE\u7F6E\u56FE\u7247\u4E0B\u8F7D\u5931\u8D25\u65F6\u7684\u91CD\u8BD5\u6B21\u6570\uFF0C\u9ED8\u8BA43\u6B21 / set the number of retries when image download fails, default 3").addText((text) => text.setPlaceholder("3").setValue(this.plugin.settings.imageDownloadRetries.toString()).onChange(async (value) => {
         const retries = parseInt(value);
         if (isNaN(retries) || retries < 0) {
           new import_obsidian6.Notice("\u91CD\u8BD5\u6B21\u6570\u5FC5\u987B\u662F\u975E\u8D1F\u6574\u6570");
@@ -24446,40 +24463,35 @@ var OmnivoreSettingTab = class extends import_obsidian6.PluginSettingTab {
         this.plugin.settings.imageDownloadRetries = retries;
         await this.plugin.saveSettings();
       }));
-      new import_obsidian6.Setting(containerEl).setName("\u56FE\u7247\u5B58\u50A8\u6587\u4EF6\u5939 / Image Storage Folder").setDesc(createFragment((fragment) => {
-        fragment.append("\u8BBE\u7F6E\u672C\u5730\u5316\u56FE\u7247\u7684\u5B58\u50A8\u8DEF\u5F84\u3002\u53EF\u4F7F\u7528 ", fragment.createEl("code", { text: "{{{date}}}" }), " \u4F5C\u4E3A\u65E5\u671F\u53D8\u91CF / Set the storage path for localized images. Use ", fragment.createEl("code", { text: "{{{date}}}" }), " as date variable", fragment.createEl("br"), fragment.createEl("br"), "\u793A\u4F8B / Examples:", fragment.createEl("br"), "\u2022 ", fragment.createEl("code", { text: "\u7B14\u8BB0\u540C\u6B65\u52A9\u624B/images/{{{date}}}" }), " \u2192 \u6309\u65E5\u671F\u5206\u7C7B", fragment.createEl("br"), "\u2022 ", fragment.createEl("code", { text: "attachments/images" }), " \u2192 \u7EDF\u4E00\u5B58\u50A8");
-      })).addText((text) => text.setPlaceholder("\u7B14\u8BB0\u540C\u6B65\u52A9\u624B/images/{{{date}}}").setValue(this.plugin.settings.imageAttachmentFolder).onChange(async (value) => {
+      new import_obsidian6.Setting(containerEl).setName("\u56FE\u7247\u5B58\u50A8\u6587\u4EF6\u5939 / image storage folder").setDesc("\u8BBE\u7F6E\u672C\u5730\u5316\u56FE\u7247\u7684\u5B58\u50A8\u8DEF\u5F84\u3002\u53EF\u4F7F\u7528 {{{date}}} \u4F5C\u4E3A\u65E5\u671F\u53D8\u91CF / set the storage path for localized images. Use {{{date}}} as date variable. Examples: \u7B14\u8BB0\u540C\u6B65\u52A9\u624B/images/{{{date}}} or attachments/images").addText((text) => text.setPlaceholder("\u7B14\u8BB0\u540C\u6B65\u52A9\u624B/images/{{{date}}}").setValue(this.plugin.settings.imageAttachmentFolder).onChange(async (value) => {
         this.plugin.settings.imageAttachmentFolder = value || "\u7B14\u8BB0\u540C\u6B65\u52A9\u624B/images/{{{date}}}";
         await this.plugin.saveSettings();
       }));
     }
-    containerEl.createEl("h3", {
-      cls: "omnivore-collapsible",
-      text: "\u9AD8\u7EA7\u8BBE\u7F6E / Advanced Settings"
-    });
+    new import_obsidian6.Setting(containerEl).setName("\u9AD8\u7EA7\u9009\u9879 / advanced").setHeading().setClass("omnivore-collapsible");
     const advancedSettings = containerEl.createEl("div", {
       cls: "omnivore-content"
     });
-    advancedSettings.createEl("h4", { text: "\u6587\u7AE0\u8BBE\u7F6E / Article Settings" });
-    new import_obsidian6.Setting(advancedSettings).setName("\u524D\u7F6E\u5143\u6570\u636E / Front Matter").setDesc(createFragment((fragment) => {
+    new import_obsidian6.Setting(advancedSettings).setName("\u6587\u7AE0\u9009\u9879 / article").setHeading();
+    new import_obsidian6.Setting(advancedSettings).setName("\u524D\u7F6E\u5143\u6570\u636E / front matter").setDesc(createFragment((fragment) => {
       fragment.append("\u8F93\u5165\u7528\u4E8E\u7B14\u8BB0\u7684\u5143\u6570\u636E\uFF0C\u7528\u9017\u53F7\u5206\u9694\u3002\u60A8\u4E5F\u53EF\u4EE5\u4F7F\u7528\u81EA\u5B9A\u4E49\u522B\u540D\uFF0C\u683C\u5F0F\u4E3A metatdata::alias\uFF0C\u4F8B\u5982 date_saved::date\u3002 / Enter the metadata to be used in your note separated by commas. You can also use custom aliases in the format of metatdata::alias, e.g. date_saved::date. ", fragment.createEl("br"), fragment.createEl("br"), "\u5982\u679C\u8981\u4F7F\u7528\u81EA\u5B9A\u4E49\u524D\u7F6E\u5143\u6570\u636E\u6A21\u677F\uFF0C\u53EF\u5728\u4E0B\u65B9\u8F93\u5165 / If you want to use a custom front matter template, you can enter it below");
     })).addTextArea((text) => {
       text.setPlaceholder("Enter the metadata").setValue(this.plugin.settings.frontMatterVariables.join(",")).onChange(async (value) => {
-        this.plugin.settings.frontMatterVariables = value.split(",").map((v) => v.trim()).filter((v, i2, a) => FRONT_MATTER_VARIABLES.includes(v.split("::")[0]) && a.indexOf(v) === i2);
+        this.plugin.settings.frontMatterVariables = value.split(",").map((v) => v.trim()).filter((v, i, a) => FRONT_MATTER_VARIABLES.includes(v.split("::")[0]) && a.indexOf(v) === i);
         await this.plugin.saveSettings();
       });
       text.inputEl.setAttr("rows", 4);
       text.inputEl.setAttr("cols", 30);
     });
-    new import_obsidian6.Setting(advancedSettings).setName("\u6587\u7AE0\u6A21\u677F / Article Template").setDesc(createFragment((fragment) => {
+    new import_obsidian6.Setting(advancedSettings).setName("\u6587\u7AE0\u6A21\u677F / article template").setDesc(createFragment((fragment) => {
       fragment.append("\u8F93\u5165\u6587\u7AE0\u6E32\u67D3\u6A21\u677F / Enter template to render articles ", fragment.createEl("br"), "\u5982\u679C\u8981\u4F7F\u7528\u81EA\u5B9A\u4E49\u524D\u7F6E\u5143\u6570\u636E\u6A21\u677F\uFF0C\u53EF\u5728\u4E0B\u65B9\u8F93\u5165 / If you want to use a custom front matter template, you can enter it below");
     })).addTextArea((text) => {
       text.setPlaceholder("Enter the template").setValue(this.plugin.settings.template).onChange(async (value) => {
         this.plugin.settings.template = value ? value : DEFAULT_SETTINGS.template;
         await this.plugin.saveSettings();
       });
-      text.inputEl.setAttr("rows", 25);
-      text.inputEl.setAttr("cols", 50);
+      text.inputEl.setAttr("rows", 4);
+      text.inputEl.setAttr("cols", 30);
     }).addExtraButton((button) => {
       button.setIcon("reset").setTooltip("Reset template").onClick(async () => {
         this.plugin.settings.template = DEFAULT_SETTINGS.template;
@@ -24488,28 +24500,28 @@ var OmnivoreSettingTab = class extends import_obsidian6.PluginSettingTab {
         new import_obsidian6.Notice("Template reset");
       });
     });
-    new import_obsidian6.Setting(advancedSettings).setName("\u4FDD\u5B58\u65E5\u671F\u683C\u5F0F / Date Saved Format").setDesc("\u8F93\u5165\u6E32\u67D3\u6A21\u677F\u4E2D dateSaved \u53D8\u91CF\u7684\u65E5\u671F\u683C\u5F0F / Enter the date format for dateSaved variable in rendered template").addText((text) => text.setPlaceholder("yyyy-MM-dd'T'HH:mm:ss").setValue(this.plugin.settings.dateSavedFormat).onChange(async (value) => {
+    new import_obsidian6.Setting(advancedSettings).setName("\u4FDD\u5B58\u65E5\u671F\u683C\u5F0F / date saved format").setDesc("specify the date format for dateSaved variable in rendered template. Example format: yyyy-MM-dd'T'HH:mm:ss").addText((text) => text.setPlaceholder("yyyy-MM-dd'T'HH:mm:ss").setValue(this.plugin.settings.dateSavedFormat).onChange(async (value) => {
       this.plugin.settings.dateSavedFormat = value;
       await this.plugin.saveSettings();
     }));
-    new import_obsidian6.Setting(advancedSettings).setName("\u52A9\u624B\u6D88\u606F\u6A21\u677F / Assistant Message Template").setDesc(createFragment((fragment) => {
+    new import_obsidian6.Setting(advancedSettings).setName("\u52A9\u624B\u6D88\u606F\u6A21\u677F / assistant message template").setDesc(createFragment((fragment) => {
       fragment.append("\u8BBE\u7F6E\u52A9\u624B\u6D88\u606F\uFF08\u6807\u9898\u683C\u5F0F\uFF1A\u540C\u6B65\u52A9\u624B_yyyyMMdd_xxx\uFF09\u7684\u663E\u793A\u6A21\u677F\u3002\u52A9\u624B\u6D88\u606F\u4F1A\u81EA\u52A8\u4F7F\u7528\u6B64\u7B80\u6D01\u6A21\u677F\uFF0C\u53BB\u9664\u6807\u9898\u3001\u6807\u7B7E\u7B49\u5197\u4F59\u4FE1\u606F / Set the template for assistant messages (title format: \u540C\u6B65\u52A9\u624B_yyyyMMdd_xxx). Assistant messages will automatically use this clean template, removing titles, tags, and other redundant information", fragment.createEl("br"), fragment.createEl("br"), "\u53EF\u7528\u53D8\u91CF / Available variables:", fragment.createEl("br"), "\u2022 {{{dateSaved}}} = \u4FDD\u5B58\u65F6\u95F4 / saved date", fragment.createEl("br"), "\u2022 {{{content}}} = \u6D88\u606F\u5185\u5BB9 / message content", fragment.createEl("br"), "\u2022 {{{title}}} = \u6807\u9898 / title", fragment.createEl("br"), "\u2022 {{{id}}} = ID", fragment.createEl("br"), fragment.createEl("br"), "\u793A\u4F8B / Examples:", fragment.createEl("br"), "\u2022 ---\\n## \u{1F4C5} {{{dateSaved}}}\\n{{{content}}} \u2192 \u4F7F\u7528\u5206\u9694\u7EBF\u548C\u4E8C\u7EA7\u6807\u9898\uFF08\u63A8\u8350\uFF09", fragment.createEl("br"), "\u2022 {{{content}}} \u2192 \u4EC5\u663E\u793A\u5185\u5BB9", fragment.createEl("br"), "\u2022 \u{1F4C5} {{{dateSaved}}}\\n{{{content}}} \u2192 emoji + \u65F6\u95F4 + \u5185\u5BB9");
     })).addTextArea((text) => {
       text.setPlaceholder("---\\n## \u{1F4C5} {{{dateSaved}}}\\n{{{content}}}").setValue(this.plugin.settings.wechatMessageTemplate).onChange(async (value) => {
         this.plugin.settings.wechatMessageTemplate = value || "---\\n## \u{1F4C5} {{{dateSaved}}}\\n{{{content}}}";
         await this.plugin.saveSettings();
       });
-      text.inputEl.setAttr("rows", 3);
-      text.inputEl.setAttr("cols", 50);
+      text.inputEl.setAttr("rows", 4);
+      text.inputEl.setAttr("cols", 30);
     }).addExtraButton((button) => {
-      button.setIcon("reset").setTooltip("\u91CD\u7F6E\u4E3A\u9ED8\u8BA4\u6A21\u677F / Reset to default template").onClick(async () => {
+      button.setIcon("reset").setTooltip("\u91CD\u7F6E\u4E3A\u9ED8\u8BA4\u6A21\u677F / reset to default template").onClick(async () => {
         this.plugin.settings.wechatMessageTemplate = DEFAULT_SETTINGS.wechatMessageTemplate;
         await this.plugin.saveSettings();
         this.display();
-        new import_obsidian6.Notice("\u52A9\u624B\u6D88\u606F\u6A21\u677F\u5DF2\u91CD\u7F6E / Assistant message template reset");
+        new import_obsidian6.Notice("\u52A9\u624B\u6D88\u606F\u6A21\u677F\u5DF2\u91CD\u7F6E / assistant message template reset");
       });
     });
-    new import_obsidian6.Setting(advancedSettings).setName("\u524D\u7F6E\u5143\u6570\u636E\u6A21\u677F / Front Matter Template").setDesc(createFragment((fragment) => {
+    new import_obsidian6.Setting(advancedSettings).setName("\u524D\u7F6E\u5143\u6570\u636E\u6A21\u677F / front matter template").setDesc(createFragment((fragment) => {
       fragment.append("\u8F93\u5165 YAML \u6A21\u677F\u6765\u6E32\u67D3\u524D\u7F6E\u5143\u6570\u636E / Enter YAML template to render the front matter with ", fragment.createEl("a", {
         text: "Reference",
         href: "https://docs.omnivore.app/integrations/obsidian.html#front-matter-template"
@@ -24529,30 +24541,38 @@ var OmnivoreSettingTab = class extends import_obsidian6.PluginSettingTab {
         new import_obsidian6.Notice("Front matter template reset");
       });
     });
-    const help = containerEl.createEl("p");
-    help.innerHTML = `\u66F4\u591A\u4FE1\u606F\u8BF7\u5173\u6CE8\u300A\u7B14\u8BB0\u540C\u6B65\u52A9\u624B\u300B\u516C\u4F17\u53F7\u3002`;
+    containerEl.createEl("p", {
+      text: "\u66F4\u591A\u4FE1\u606F\u8BF7\u5173\u6CE8\u300A\u7B14\u8BB0\u540C\u6B65\u52A9\u624B\u300B\u516C\u4F17\u53F7\u3002"
+    });
     const coll = document.getElementsByClassName("omnivore-collapsible");
-    let i;
-    for (i = 0; i < coll.length; i++) {
+    for (let i = 0; i < coll.length; i++) {
       coll[i].addEventListener("click", function() {
         this.classList.toggle("omnivore-active");
         const content = this.nextElementSibling;
-        if (content.style.maxHeight) {
-          content.style.maxHeight = null;
-        } else {
-          content.style.maxHeight = "fit-content";
+        if (content) {
+          content.toggleClass("is-expanded", !content.hasClass("is-expanded"));
         }
       });
     }
   }
   displayBlock(block, display) {
-    block.style.display = display ? "block" : "none";
+    if (display) {
+      block.removeClass("is-hidden");
+    } else {
+      block.addClass("is-hidden");
+    }
   }
   displayVersionInfo(containerEl) {
     const versionContainer = containerEl.createEl("div", {
       cls: "omnivore-version-container"
     });
-    versionContainer.style.cssText = "margin-bottom: 20px; padding: 15px; border: 1px solid var(--background-modifier-border); border-radius: 8px; background: var(--background-secondary);";
+    versionContainer.setCssStyles({
+      marginBottom: "20px",
+      padding: "15px",
+      border: "1px solid var(--background-modifier-border)",
+      borderRadius: "8px",
+      background: "var(--background-secondary)"
+    });
     const currentVersion = this.plugin.manifest.version;
     const versionInfo = versionContainer.createEl("div", {
       cls: "omnivore-version-info"
@@ -24561,14 +24581,19 @@ var OmnivoreSettingTab = class extends import_obsidian6.PluginSettingTab {
       text: `\u7B14\u8BB0\u540C\u6B65\u52A9\u624B\u7248\u672C: ${currentVersion}`,
       cls: "omnivore-current-version"
     });
-    versionText.style.cssText = "font-weight: bold; margin-right: 15px;";
+    versionText.setCssStyles({
+      fontWeight: "bold",
+      marginRight: "15px"
+    });
     const checkButton = versionInfo.createEl("button", {
       text: "\u68C0\u67E5\u66F4\u65B0",
       cls: "mod-cta omnivore-check-update-btn"
     });
-    checkButton.style.cssText = "margin-left: 10px;";
+    checkButton.setCssStyles({
+      marginLeft: "10px"
+    });
     checkButton.onclick = () => {
-      this.checkForUpdates(versionContainer);
+      void this.checkForUpdates(versionContainer);
     };
     if (this.versionCheckPromise) {
       this.showVersionCheckStatus(versionContainer, "\u6B63\u5728\u68C0\u67E5\u66F4\u65B0...");
@@ -24629,7 +24654,11 @@ var OmnivoreSettingTab = class extends import_obsidian6.PluginSettingTab {
       text: message,
       cls: "omnivore-version-status"
     });
-    statusEl.style.cssText = "margin-top: 10px; color: var(--text-muted); font-size: 0.9em;";
+    statusEl.setCssStyles({
+      marginTop: "10px",
+      color: "var(--text-muted)",
+      fontSize: "0.9em"
+    });
   }
   showVersionStatus(versionContainer) {
     log("\u{1F504} \u5F00\u59CB\u663E\u793A\u7248\u672C\u72B6\u6001...");
@@ -24653,12 +24682,21 @@ var OmnivoreSettingTab = class extends import_obsidian6.PluginSettingTab {
       const updateContainer = versionContainer.createEl("div", {
         cls: "omnivore-update-available"
       });
-      updateContainer.style.cssText = "margin-top: 10px; padding: 10px; background: var(--background-modifier-success); border-radius: 4px;";
+      updateContainer.setCssStyles({
+        marginTop: "10px",
+        padding: "10px",
+        background: "var(--background-modifier-success)",
+        borderRadius: "4px"
+      });
       const updateText = updateContainer.createEl("div", {
         text: `\u53D1\u73B0\u65B0\u7248\u672C ${latestVersion}\uFF01`,
         cls: "omnivore-update-text"
       });
-      updateText.style.cssText = "color: var(--text-success); font-weight: bold; margin-bottom: 8px;";
+      updateText.setCssStyles({
+        color: "var(--text-success)",
+        fontWeight: "bold",
+        marginBottom: "8px"
+      });
       const downloadButton = updateContainer.createEl("button", {
         text: "\u4E0B\u8F7D\u6700\u65B0\u7248\u672C",
         cls: "mod-cta omnivore-download-btn"
@@ -24749,15 +24787,26 @@ var ConfirmModal = class extends import_obsidian6.Modal {
   onOpen() {
     const { contentEl } = this;
     contentEl.createEl("h2", { text: this.title });
-    contentEl.createEl("p", {
+    const messageEl = contentEl.createEl("p", {
       text: this.message
-    }).style.cssText = "white-space: pre-wrap; margin: 20px 0;";
+    });
+    messageEl.setCssStyles({
+      whiteSpace: "pre-wrap",
+      margin: "20px 0"
+    });
     const buttonContainer = contentEl.createDiv();
-    buttonContainer.style.cssText = "display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;";
+    buttonContainer.setCssStyles({
+      display: "flex",
+      justifyContent: "flex-end",
+      gap: "10px",
+      marginTop: "20px"
+    });
     const cancelButton = buttonContainer.createEl("button", {
       text: "\u53D6\u6D88"
     });
-    cancelButton.style.cssText = "padding: 5px 15px;";
+    cancelButton.setCssStyles({
+      padding: "5px 15px"
+    });
     cancelButton.onclick = () => {
       this.close();
     };
@@ -24765,9 +24814,11 @@ var ConfirmModal = class extends import_obsidian6.Modal {
       text: "\u786E\u8BA4",
       cls: "mod-warning"
     });
-    confirmButton.style.cssText = "padding: 5px 15px;";
-    confirmButton.onclick = async () => {
-      await this.onConfirm();
+    confirmButton.setCssStyles({
+      padding: "5px 15px"
+    });
+    confirmButton.onclick = () => {
+      void this.onConfirm();
       this.close();
     };
   }
@@ -24781,7 +24832,6 @@ var ConfirmModal = class extends import_obsidian6.Modal {
 var import_obsidian7 = require("obsidian");
 var ConfigMigrationManager = class {
   constructor(app, plugin) {
-    this.BACKUP_KEY = "config-backup";
     this.MAX_BACKUPS = 5;
     this.VAULT_BACKUP_FILE = "config-history.json";
     this.app = app;
@@ -24792,29 +24842,28 @@ var ConfigMigrationManager = class {
   }
   async backupSettings(settings) {
     try {
+      const settingsToBackup = this.sanitizeSettings(settings);
       const backupData = {
         timestamp: new Date().toISOString(),
         version: settings.version,
-        settings
+        settings: settingsToBackup
       };
-      const existingBackups = await this.loadInternalBackups();
-      existingBackups.unshift(backupData);
-      const limitedBackups = existingBackups.slice(0, this.MAX_BACKUPS);
-      const currentData = await this.plugin.loadData() || {};
-      currentData[this.BACKUP_KEY] = limitedBackups;
-      await this.plugin.saveData(currentData);
       await this.saveToVaultBackup(backupData);
       log("\u914D\u7F6E\u5907\u4EFD\u6210\u529F", {
-        internalBackups: limitedBackups.length,
         externalBackup: "vault level",
         latestBackup: backupData.timestamp
       });
     } catch (error) {
-      log("\u914D\u7F6E\u5907\u4EFD\u5931\u8D25,\u4F46\u4E0D\u5F71\u54CD\u63D2\u4EF6\u6B63\u5E38\u8FD0\u884C", error.message);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      log("\u914D\u7F6E\u5907\u4EFD\u5931\u8D25,\u4F46\u4E0D\u5F71\u54CD\u63D2\u4EF6\u6B63\u5E38\u8FD0\u884C", errorMessage);
     }
   }
   async saveToVaultBackup(backupData) {
     try {
+      const sanitizedBackup = {
+        ...backupData,
+        settings: this.sanitizeSettings(backupData.settings)
+      };
       const backupDir = (0, import_obsidian7.normalizePath)(this.VAULT_BACKUP_DIR);
       const dirExists = await this.app.vault.adapter.exists(backupDir);
       if (!dirExists) {
@@ -24822,14 +24871,15 @@ var ConfigMigrationManager = class {
           await this.app.vault.createFolder(backupDir);
           log("\u521B\u5EFA\u5916\u90E8\u5907\u4EFD\u76EE\u5F55:", backupDir);
         } catch (error) {
-          if (!error.toString().includes("Folder already exists")) {
+          const errorStr = error instanceof Error ? error.message : String(error);
+          if (!errorStr.includes("Folder already exists")) {
             throw error;
           }
           log("\u5916\u90E8\u5907\u4EFD\u76EE\u5F55\u5DF2\u5B58\u5728\uFF0C\u8DF3\u8FC7\u521B\u5EFA");
         }
       }
       const existingBackups = await this.loadVaultBackups();
-      existingBackups.unshift(backupData);
+      existingBackups.unshift(sanitizedBackup);
       const limitedBackups = existingBackups.slice(0, this.MAX_BACKUPS);
       const backupPath = (0, import_obsidian7.normalizePath)(`${this.VAULT_BACKUP_DIR}/${this.VAULT_BACKUP_FILE}`);
       const backupContent = JSON.stringify(limitedBackups, null, 2);
@@ -24881,23 +24931,6 @@ var ConfigMigrationManager = class {
       return [];
     }
   }
-  async restoreFromInternalBackup() {
-    try {
-      const backups = await this.loadInternalBackups();
-      if (backups.length === 0) {
-        log("\u672A\u627E\u5230\u5185\u5D4C\u5907\u4EFD");
-        return null;
-      }
-      const latestBackup = backups[0];
-      if (latestBackup.settings) {
-        log("\u4ECE\u5185\u5D4C\u5907\u4EFD\u6062\u590D\u914D\u7F6E\u6210\u529F", latestBackup.timestamp);
-        return latestBackup.settings;
-      }
-    } catch (error) {
-      logError("\u4ECE\u5185\u5D4C\u5907\u4EFD\u6062\u590D\u914D\u7F6E\u5931\u8D25", error);
-    }
-    return null;
-  }
   async restoreFromVaultBackup() {
     try {
       const backups = await this.loadVaultBackups();
@@ -24908,32 +24941,12 @@ var ConfigMigrationManager = class {
       const latestBackup = backups[0];
       if (latestBackup.settings) {
         log("\u4ECE\u5916\u90E8\u5907\u4EFD\u6062\u590D\u914D\u7F6E\u6210\u529F", latestBackup.timestamp);
-        return latestBackup.settings;
+        return this.sanitizeSettings(latestBackup.settings);
       }
     } catch (error) {
       logError("\u4ECE\u5916\u90E8\u5907\u4EFD\u6062\u590D\u914D\u7F6E\u5931\u8D25", error);
     }
     return null;
-  }
-  async loadInternalBackups() {
-    try {
-      const data2 = await this.plugin.loadData() || {};
-      const backups = data2[this.BACKUP_KEY] || [];
-      if (!Array.isArray(backups)) {
-        log("\u5185\u5D4C\u5907\u4EFD\u6570\u636E\u683C\u5F0F\u65E0\u6548,\u91CD\u65B0\u521D\u59CB\u5316");
-        return [];
-      }
-      return backups.filter((backup) => {
-        if (typeof backup !== "object" || backup === null) {
-          return false;
-        }
-        const obj = backup;
-        return "timestamp" in obj && "settings" in obj && typeof obj.settings === "object";
-      });
-    } catch (error) {
-      logError("\u52A0\u8F7D\u5185\u5D4C\u5907\u4EFD\u5931\u8D25", error);
-      return [];
-    }
   }
   isConfigMigrationNeeded(currentSettings, manifestVersion) {
     const hasMinimalConfig = currentSettings.apiKey && currentSettings.apiKey !== DEFAULT_SETTINGS.apiKey;
@@ -24963,9 +24976,10 @@ var ConfigMigrationManager = class {
       "wechatMessageTemplate"
     ];
     const mergedSettings = { ...DEFAULT_SETTINGS, ...backupSettings };
-    if (backupSettings.isSingleFile !== void 0 && !backupSettings.mergeMode) {
-      const oldIsSingleFile = backupSettings.isSingleFile;
-      mergedSettings.mergeMode = oldIsSingleFile ? "messages" : "none";
+    const legacySettings = backupSettings;
+    if (legacySettings.isSingleFile !== void 0 && !backupSettings.mergeMode) {
+      const oldIsSingleFile = legacySettings.isSingleFile;
+      mergedSettings.mergeMode = oldIsSingleFile ? "messages" /* MESSAGES */ : "none" /* NONE */;
       log("\u914D\u7F6E\u8FC1\u79FB\uFF1A\u5C06 isSingleFile \u8F6C\u6362\u4E3A mergeMode", {
         isSingleFile: oldIsSingleFile,
         mergeMode: mergedSettings.mergeMode
@@ -25013,18 +25027,6 @@ var ConfigMigrationManager = class {
       currentVersion: currentSettings.version,
       targetVersion: manifestVersion
     });
-    log("\u{1F50D} \u5C1D\u8BD5\u4ECE\u5185\u5D4C\u5907\u4EFD\u6062\u590D...");
-    const internalBackup = await this.restoreFromInternalBackup();
-    if (internalBackup) {
-      const mergedSettings = this.smartMergeSettings(currentSettings, internalBackup, manifestVersion);
-      log("\u2705 \u914D\u7F6E\u8FC1\u79FB:\u4ECE\u5185\u5D4C\u5907\u4EFD\u6062\u590D\u914D\u7F6E\u6210\u529F", {
-        backupVersion: internalBackup.version,
-        targetVersion: manifestVersion,
-        hasApiKey: !!internalBackup.apiKey
-      });
-      return mergedSettings;
-    }
-    log("\u274C \u5185\u5D4C\u5907\u4EFD\u4E0D\u53EF\u7528");
     log("\u{1F50D} \u5C1D\u8BD5\u4ECE\u5916\u90E8\u5907\u4EFD\u6062\u590D...");
     const vaultBackup = await this.restoreFromVaultBackup();
     if (vaultBackup) {
@@ -25048,13 +25050,8 @@ var ConfigMigrationManager = class {
   }
   async getBackupInfo() {
     try {
-      const internalBackups = await this.loadInternalBackups();
       const externalBackups = await this.loadVaultBackups();
       return {
-        internal: {
-          count: internalBackups.length,
-          latest: internalBackups.length > 0 ? internalBackups[0].timestamp : null
-        },
         external: {
           count: externalBackups.length,
           latest: externalBackups.length > 0 ? externalBackups[0].timestamp : null
@@ -25063,24 +25060,44 @@ var ConfigMigrationManager = class {
     } catch (error) {
       logError("\u83B7\u53D6\u5907\u4EFD\u4FE1\u606F\u5931\u8D25", error);
       return {
-        internal: { count: 0, latest: null },
         external: { count: 0, latest: null }
       };
     }
   }
   async clearAllBackups() {
     try {
-      const currentData = await this.plugin.loadData() || {};
-      currentData[this.BACKUP_KEY] = [];
-      await this.plugin.saveData(currentData);
       const backupPath = (0, import_obsidian7.normalizePath)(`${this.VAULT_BACKUP_DIR}/${this.VAULT_BACKUP_FILE}`);
       const exists = await this.app.vault.adapter.exists(backupPath);
       if (exists) {
         await this.app.vault.adapter.remove(backupPath);
       }
-      log("\u6240\u6709\u5907\u4EFD\u5DF2\u6E05\u7406");
+      log("\u5916\u90E8\u5907\u4EFD\u5DF2\u6E05\u7406");
     } catch (error) {
       logError("\u6E05\u7406\u5907\u4EFD\u5931\u8D25", error);
+    }
+  }
+  sanitizeSettings(settings) {
+    const cloned = JSON.parse(JSON.stringify(settings));
+    delete cloned["config-backup"];
+    this.deepCleanBackupFields(cloned);
+    return cloned;
+  }
+  deepCleanBackupFields(obj) {
+    for (const key in obj) {
+      if (key === "config-backup") {
+        delete obj[key];
+        continue;
+      }
+      const value = obj[key];
+      if (value && typeof value === "object" && !Array.isArray(value)) {
+        this.deepCleanBackupFields(value);
+      } else if (Array.isArray(value)) {
+        value.forEach((item) => {
+          if (item && typeof item === "object") {
+            this.deepCleanBackupFields(item);
+          }
+        });
+      }
     }
   }
 };
@@ -25118,7 +25135,7 @@ async function downloadImage(url, maxRetries = 3, retryDelay = 1e3) {
         data: response.arrayBuffer
       };
     } catch (error) {
-      lastError = error;
+      lastError = error instanceof Error ? error : new Error(String(error));
       logError(`\u4E0B\u8F7D\u56FE\u7247\u5931\u8D25 (${attempt + 1}/${maxRetries + 1}): ${url}`, error);
       if (attempt < maxRetries) {
         const delay = retryDelay * Math.pow(2, attempt);
@@ -25142,7 +25159,7 @@ function isRemoteImage(url) {
     }
     const urlObj = new URL(url);
     return urlObj.protocol === "http:" || urlObj.protocol === "https:";
-  } catch (error) {
+  } catch {
     return false;
   }
 }
@@ -25189,7 +25206,7 @@ function detectImageFormat(data2) {
     if (text.includes("<svg") || text.includes("<?xml")) {
       return "svg";
     }
-  } catch (e) {
+  } catch {
   }
   return "unknown";
 }
@@ -25212,18 +25229,22 @@ async function convertPngToJpeg(data2, quality = 0.85) {
           ctx.fillStyle = "#FFFFFF";
           ctx.fillRect(0, 0, canvas.width, canvas.height);
           ctx.drawImage(img, 0, 0);
-          canvas.toBlob(async (jpegBlob) => {
+          canvas.toBlob((jpegBlob) => {
             if (!jpegBlob) {
               reject(new Error("\u8F6C\u6362 JPEG \u5931\u8D25"));
               return;
             }
-            const arrayBuffer = await jpegBlob.arrayBuffer();
-            URL.revokeObjectURL(url);
-            resolve(arrayBuffer);
+            jpegBlob.arrayBuffer().then((arrayBuffer) => {
+              URL.revokeObjectURL(url);
+              resolve(arrayBuffer);
+            }).catch((err) => {
+              URL.revokeObjectURL(url);
+              reject(err instanceof Error ? err : new Error(String(err)));
+            });
           }, "image/jpeg", quality);
         } catch (error) {
           URL.revokeObjectURL(url);
-          reject(error);
+          reject(error instanceof Error ? error : new Error(String(error)));
         }
       };
       img.onerror = () => {
@@ -25232,7 +25253,7 @@ async function convertPngToJpeg(data2, quality = 0.85) {
       };
       img.src = url;
     } catch (error) {
-      reject(error);
+      reject(error instanceof Error ? error : new Error(String(error)));
     }
   });
 }
@@ -25433,8 +25454,28 @@ var ImageLocalizer = class {
   }
   generateFolderPath(file) {
     const tempItem = {
+      id: "",
       title: file.basename,
-      savedAt: DateTime.now().toISO()
+      siteName: null,
+      originalArticleUrl: null,
+      author: null,
+      description: null,
+      slug: "",
+      labels: null,
+      highlights: null,
+      updatedAt: null,
+      savedAt: DateTime.now().toISO() ?? new Date().toISOString(),
+      pageType: "ARTICLE",
+      content: null,
+      publishedAt: null,
+      url: "",
+      image: null,
+      readAt: null,
+      wordsCount: null,
+      readingProgressPercent: 0,
+      isArchived: false,
+      archivedAt: null,
+      contentReader: null
     };
     const folderPath = render3(tempItem, this.options.attachmentFolder, this.options.folderDateFormat);
     return (0, import_obsidian10.normalizePath)(folderPath);
@@ -25544,6 +25585,9 @@ var SyncContext = class {
 
 // src/sync/MergeProcessor.ts
 var import_obsidian11 = require("obsidian");
+function findFrontMatterIndex(frontMatter, id) {
+  return frontMatter.findIndex((fm) => fm.id === id);
+}
 var MergeProcessor = class {
   constructor(context) {
     this.context = context;
@@ -25552,21 +25596,25 @@ var MergeProcessor = class {
     const existingContent = await this.context.app.vault.read(omnivoreFile);
     const contentWithoutFrontmatter = removeFrontMatterFromContent(content);
     const existingContentWithoutFrontmatter = removeFrontMatterFromContent(existingContent);
-    let parsedExistingFrontMatter = parseFrontMatterFromContent(existingContent) || {};
-    const otherProperties = { ...parsedExistingFrontMatter };
+    const rawExisting = parseFrontMatterFromContent(existingContent);
+    const parsedExistingFrontMatter = Array.isArray(rawExisting) ? { messages: rawExisting } : rawExisting ?? {};
+    const otherProperties = {
+      ...parsedExistingFrontMatter
+    };
     delete otherProperties.messages;
-    let existingFrontMatter = parsedExistingFrontMatter?.messages || [];
+    let existingFrontMatter = parsedExistingFrontMatter.messages ?? [];
     if (!Array.isArray(existingFrontMatter)) {
-      existingFrontMatter = Array.isArray(parsedExistingFrontMatter) ? parsedExistingFrontMatter : [parsedExistingFrontMatter];
+      existingFrontMatter = [existingFrontMatter];
     }
-    const parsedNewFrontMatter = parseFrontMatterFromContent(content);
+    const rawNew = parseFrontMatterFromContent(content);
+    const parsedNewFrontMatter = rawNew ?? {};
     log("\u{1F527} \u89E3\u6790Front Matter:", {
       itemId: item.id,
       title: item.title,
       parsed: parsedNewFrontMatter
     });
-    let newFrontMatter = parsedNewFrontMatter?.messages || [];
-    if (!newFrontMatter || !Array.isArray(newFrontMatter) || newFrontMatter.length === 0) {
+    let newFrontMatter = parsedNewFrontMatter.messages ?? [];
+    if (!Array.isArray(newFrontMatter) || newFrontMatter.length === 0) {
       logError("\u26A0\uFE0F Front Matter\u89E3\u6790\u5931\u8D25\uFF0C\u4F7F\u7528\u9ED8\u8BA4\u503C", {
         itemId: item.id,
         title: item.title
@@ -25695,7 +25743,8 @@ var FileProcessor = class {
         newNormalizedPath = (0, import_obsidian12.normalizePath)(newPageName);
         newOmnivoreFile = this.context.app.vault.getAbstractFileByPath(newNormalizedPath);
       } catch (error) {
-        if (error.toString().includes("ENOENT") || error.toString().includes("no such file")) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        if (errorMsg.includes("ENOENT") || errorMsg.includes("no such file")) {
           suffix++;
           newPageName = `${folderName}/${customFilename} ${suffix}.md`;
           newNormalizedPath = (0, import_obsidian12.normalizePath)(newPageName);
@@ -25722,7 +25771,8 @@ var FileProcessor = class {
       await this.context.enqueueFileForImageLocalization(createdFile);
       this.context.addProcessedFile(createdFile);
     } catch (error) {
-      if (error.toString().includes("File already exists")) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      if (errorMsg.includes("File already exists")) {
         const existingFile = this.context.app.vault.getAbstractFileByPath(normalizedPath);
         if (existingFile instanceof import_obsidian12.TFile) {
           await this.context.enqueueFileForImageLocalization(existingFile);
@@ -25751,24 +25801,22 @@ var OmnivorePlugin = class extends import_obsidian13.Plugin {
   }
   createDebouncedSave() {
     let timeout = null;
-    return async () => {
+    return () => {
       if (timeout) {
         clearTimeout(timeout);
       }
-      timeout = setTimeout(async () => {
+      timeout = setTimeout(() => {
         log("\u{1F4BE} [\u9632\u6296\u4FDD\u5B58] \u5F00\u59CB\u6267\u884C\u78C1\u76D8 I/O \u64CD\u4F5C...");
         const startTime = Date.now();
-        await this.saveData(this.settings);
-        const duration = Date.now() - startTime;
-        log(`\u{1F4BE} [\u9632\u6296\u4FDD\u5B58] saveData \u5B8C\u6210\uFF0C\u8017\u65F6: ${duration}ms`);
-        if (this.configMigrationManager) {
-          try {
-            await this.configMigrationManager.backupSettings(this.settings);
-            log("\u{1F4BE} [\u9632\u6296\u4FDD\u5B58] \u5907\u4EFD\u5B8C\u6210");
-          } catch (error) {
-            log("\u914D\u7F6E\u5907\u4EFD\u65F6\u9047\u5230\u95EE\u9898\uFF0C\u4F46\u8BBE\u7F6E\u5DF2\u6B63\u5E38\u4FDD\u5B58", error);
+        const settingsToSave = { ...this.settings };
+        delete settingsToSave["config-backup"];
+        void this.saveData(settingsToSave).then(() => {
+          const duration = Date.now() - startTime;
+          log(`\u{1F4BE} [\u9632\u6296\u4FDD\u5B58] saveData \u5B8C\u6210\uFF0C\u8017\u65F6: ${duration}ms`);
+          if (this.configMigrationManager) {
+            void this.configMigrationManager.backupSettings(settingsToSave).then(() => log("\u{1F4BE} [\u9632\u6296\u4FDD\u5B58] \u5916\u90E8\u5907\u4EFD\u5B8C\u6210")).catch((error) => log("\u5916\u90E8\u5907\u4EFD\u65F6\u9047\u5230\u95EE\u9898\uFF0C\u4F46\u8BBE\u7F6E\u5DF2\u6B63\u5E38\u4FDD\u5B58", error));
           }
-        }
+        });
       }, 6e4);
     };
   }
@@ -25785,9 +25833,40 @@ var OmnivorePlugin = class extends import_obsidian13.Plugin {
   async loadEssentialSettings() {
     try {
       const loadedData = await this.loadData();
-      this.settings = Object.assign({}, DEFAULT_SETTINGS, loadedData);
+      const dataSize = loadedData ? JSON.stringify(loadedData).length : 0;
+      const MAX_ALLOWED_SIZE = 100 * 1024;
+      const isCorrupted = dataSize > MAX_ALLOWED_SIZE;
+      if (isCorrupted) {
+        log(`\u26A0\uFE0F \u68C0\u6D4B\u5230\u635F\u574F\u7684\u914D\u7F6E\u6587\u4EF6 (${(dataSize / 1024 / 1024).toFixed(2)} MB > 100KB)\uFF0C\u5C1D\u8BD5\u4ECE\u5916\u90E8\u5907\u4EFD\u6062\u590D...`);
+        try {
+          const coreSettings = {};
+          const keysToPreserve = ["apiKey", "syncAt", "folder", "filename", "customQuery", "endpoint"];
+          for (const key of keysToPreserve) {
+            if (loadedData && key in loadedData) {
+              coreSettings[key] = loadedData[key];
+            }
+          }
+          this.settings = { ...DEFAULT_SETTINGS, ...coreSettings };
+          delete this.settings["config-backup"];
+          const cleanSettings = { ...this.settings };
+          delete cleanSettings["config-backup"];
+          await this.saveData(cleanSettings);
+          new import_obsidian13.Notice(`\u68C0\u6D4B\u5230\u914D\u7F6E\u6587\u4EF6\u5F02\u5E38\uFF0C\u5DF2\u81EA\u52A8\u4FEE\u590D\u3002\u60A8\u7684\u6838\u5FC3\u914D\u7F6E\u5DF2\u4FDD\u7559\u3002`, 8e3);
+          log("\u2705 \u914D\u7F6E\u6587\u4EF6\u4FEE\u590D\u5B8C\u6210\uFF0C\u6838\u5FC3\u914D\u7F6E\u5DF2\u4FDD\u7559");
+        } catch (error) {
+          logError("\u4FEE\u590D\u635F\u574F\u7684\u914D\u7F6E\u6587\u4EF6\u5931\u8D25\uFF0C\u4F7F\u7528\u9ED8\u8BA4\u914D\u7F6E:", error);
+          this.settings = { ...DEFAULT_SETTINGS };
+          await this.saveData({});
+          new import_obsidian13.Notice(`\u914D\u7F6E\u6587\u4EF6\u4FEE\u590D\u5931\u8D25\uFF0C\u5DF2\u4F7F\u7528\u9ED8\u8BA4\u914D\u7F6E\u3002\u8BF7\u91CD\u65B0\u914D\u7F6E API key\u3002`, 1e4);
+        }
+      } else {
+        this.settings = Object.assign({}, DEFAULT_SETTINGS, loadedData ?? {});
+        delete this.settings["config-backup"];
+      }
       log("\u{1F4D6} \u52A0\u8F7D\u4E3B\u914D\u7F6E\u5B8C\u6210", {
         hasData: !!loadedData,
+        dataSize: `${(dataSize / 1024).toFixed(2)} KB`,
+        isCorrupted,
         apiKey: this.settings.apiKey ? "***" : "(\u7A7A)",
         version: this.settings.version,
         syncAt: this.settings.syncAt || "(\u7A7A)"
@@ -25803,7 +25882,9 @@ var OmnivorePlugin = class extends import_obsidian13.Plugin {
       } else {
         if (this.settings.version !== this.manifest.version) {
           this.settings.version = this.manifest.version;
-          setTimeout(() => this.saveSettings(), 3e3);
+          setTimeout(() => {
+            void this.saveSettings();
+          }, 3e3);
         }
       }
       this.settings.intervalId = 0;
@@ -25817,10 +25898,11 @@ var OmnivorePlugin = class extends import_obsidian13.Plugin {
     this.registerRibbonIcon();
     if (this.settings.syncOnStart) {
       this.app.workspace.onLayoutReady(() => {
-        setTimeout(async () => {
+        setTimeout(() => {
           if (this.settings.apiKey) {
-            await this.fetchOmnivore(false);
-            this.refreshFileExplorer();
+            void this.fetchOmnivore(false).then(() => {
+              this.refreshFileExplorer();
+            });
           }
         }, 2e3);
       });
@@ -25899,14 +25981,27 @@ var OmnivorePlugin = class extends import_obsidian13.Plugin {
         this.settings.customQuery = getQueryFromFilter(this.settings.filter);
         needsSave = true;
       }
-      const settingsAny = this.settings;
-      if (typeof settingsAny.enableImageLocalization === "boolean") {
+      const settingsWithLegacy = this.settings;
+      if (typeof settingsWithLegacy.enableImageLocalization === "boolean") {
         log("\u68C0\u6D4B\u5230\u65E7\u7248\u56FE\u7247\u8BBE\u7F6E\uFF0C\u5F00\u59CB\u8FC1\u79FB...");
-        const oldValue = settingsAny.enableImageLocalization;
+        const oldValue = settingsWithLegacy.enableImageLocalization;
         this.settings.imageMode = oldValue ? "local" /* LOCAL */ : "remote" /* REMOTE */;
-        delete settingsAny.enableImageLocalization;
+        delete settingsWithLegacy.enableImageLocalization;
         needsSave = true;
         log(`\u56FE\u7247\u8BBE\u7F6E\u5DF2\u8FC1\u79FB: ${oldValue} -> ${this.settings.imageMode}`);
+      }
+      try {
+        if (this.settings.frequency > 0 && this.settings.frequency < 900) {
+          log("\u68C0\u6D4B\u5230\u7591\u4F3C\u65E7\u7248\u9891\u7387\u914D\u7F6E\uFF0C\u5F00\u59CB\u8FC1\u79FB...");
+          const oldFrequencyInMinutes = this.settings.frequency;
+          this.settings.frequency = oldFrequencyInMinutes * 60;
+          needsSave = true;
+          log(`\u9891\u7387\u5355\u4F4D\u5DF2\u8FC1\u79FB: ${oldFrequencyInMinutes} \u5206\u949F -> ${this.settings.frequency} \u79D2`);
+        }
+      } catch (error) {
+        logError("\u9891\u7387\u8FC1\u79FB\u5931\u8D25\uFF0C\u91CD\u7F6E\u4E3A\u624B\u52A8\u540C\u6B65", error);
+        this.settings.frequency = 0;
+        needsSave = true;
       }
       if (needsSave) {
         await this.saveSettings();
@@ -25949,18 +26044,20 @@ var OmnivorePlugin = class extends import_obsidian13.Plugin {
     }
   }
   async saveSettings(immediate = false) {
+    const settingsToSave = { ...this.settings };
+    delete settingsToSave["config-backup"];
     if (immediate) {
       log("\u{1F4BE} [\u7ACB\u5373\u4FDD\u5B58] \u5F00\u59CB\u6267\u884C\u78C1\u76D8 I/O \u64CD\u4F5C...");
       const startTime = Date.now();
-      await this.saveData(this.settings);
+      await this.saveData(settingsToSave);
       const duration = Date.now() - startTime;
       log(`\u{1F4BE} [\u7ACB\u5373\u4FDD\u5B58] saveData \u5B8C\u6210\uFF0C\u8017\u65F6: ${duration}ms`);
       if (this.configMigrationManager) {
         try {
-          await this.configMigrationManager.backupSettings(this.settings);
-          log("\u{1F4BE} [\u7ACB\u5373\u4FDD\u5B58] \u5907\u4EFD\u5B8C\u6210");
+          await this.configMigrationManager.backupSettings(settingsToSave);
+          log("\u{1F4BE} [\u7ACB\u5373\u4FDD\u5B58] \u5916\u90E8\u5907\u4EFD\u5B8C\u6210");
         } catch (error) {
-          log("\u914D\u7F6E\u5907\u4EFD\u65F6\u9047\u5230\u95EE\u9898\uFF0C\u4F46\u8BBE\u7F6E\u5DF2\u6B63\u5E38\u4FDD\u5B58", error);
+          log("\u5916\u90E8\u5907\u4EFD\u65F6\u9047\u5230\u95EE\u9898\uFF0C\u4F46\u8BBE\u7F6E\u5DF2\u6B63\u5E38\u4FDD\u5B58", error);
         }
       }
     } else {
@@ -25977,7 +26074,7 @@ var OmnivorePlugin = class extends import_obsidian13.Plugin {
     if (frequency > 0) {
       const intervalId = window.setInterval(() => {
         void this.fetchOmnivore(false);
-      }, frequency * 60 * 1e3);
+      }, frequency * 1e3);
       this.settings.intervalId = intervalId;
       this.registerInterval(intervalId);
     }
@@ -26082,7 +26179,8 @@ var OmnivorePlugin = class extends import_obsidian13.Plugin {
               try {
                 await this.app.vault.createFolder(folderName);
               } catch (error) {
-                if (error.toString().includes("Folder already exists") || error.toString().includes("already exists")) {
+                const errorMessage = error instanceof Error ? error.message : String(error);
+                if (errorMessage.includes("Folder already exists") || errorMessage.includes("already exists")) {
                   this.app.vault.trigger("changed");
                 } else {
                   logError(`\u{1F527} \u6587\u4EF6\u5939\u521B\u5EFA\u5931\u8D25: ${folderName}`, error);
@@ -26148,24 +26246,14 @@ var OmnivorePlugin = class extends import_obsidian13.Plugin {
       this.refreshFileExplorer();
       if (this.settings.imageMode === "local" /* LOCAL */ && this.imageLocalizer) {
         log("\u{1F5BC}\uFE0F \u5F00\u59CB\u5F02\u6B65\u5904\u7406\u56FE\u7247\u672C\u5730\u5316...");
-        setTimeout(async () => {
-          try {
-            await this.imageLocalizer?.processQueue();
-            log("\u{1F5BC}\uFE0F \u56FE\u7247\u672C\u5730\u5316\u961F\u5217\u5904\u7406\u5B8C\u6210");
-          } catch (error) {
-            logError("\u56FE\u7247\u672C\u5730\u5316\u5904\u7406\u5931\u8D25:", error);
-          }
+        setTimeout(() => {
+          void this.imageLocalizer?.processQueue().then(() => log("\u{1F5BC}\uFE0F \u56FE\u7247\u672C\u5730\u5316\u961F\u5217\u5904\u7406\u5B8C\u6210")).catch((error) => logError("\u56FE\u7247\u672C\u5730\u5316\u5904\u7406\u5931\u8D25:", error));
         }, 500);
       } else if (this.settings.imageMode === "disabled" /* DISABLED */) {
         log("\u{1F5BC}\uFE0F \u5F00\u59CB\u5F02\u6B65\u6CE8\u91CA\u56FE\u7247...");
         const processedFilesArray = syncContext.getProcessedFilesArray();
-        setTimeout(async () => {
-          try {
-            await this.commentOutImages(processedFilesArray);
-            log("\u{1F5BC}\uFE0F \u56FE\u7247\u6CE8\u91CA\u5904\u7406\u5B8C\u6210");
-          } catch (error) {
-            logError("\u56FE\u7247\u6CE8\u91CA\u5904\u7406\u5931\u8D25:", error);
-          }
+        setTimeout(() => {
+          void this.commentOutImages(processedFilesArray).then(() => log("\u{1F5BC}\uFE0F \u56FE\u7247\u6CE8\u91CA\u5904\u7406\u5B8C\u6210")).catch((error) => logError("\u56FE\u7247\u6CE8\u91CA\u5904\u7406\u5931\u8D25:", error));
         }, 500);
       }
     } catch (e) {

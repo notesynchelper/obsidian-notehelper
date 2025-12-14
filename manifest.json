@@ -1,9 +1,9 @@
 {
 	"id": "notehelper",
 	"name": "Wechat Note Helper",
-	"version": "2.6.5",
+	"version": "2.7.0",
 	"minAppVersion": "0.15.0",
-	"description": "Capture content from WeChat Official Accounts Xiaohongshu, Dedao, Yuanbao, and Zhihu. Save chat records, images, and files with ease.",
+	"description": "Capture content from WeChat Official Accounts Xiaohongshu, Dedao, Yuanbao, and Zhihu. Save chat records, images, and files with ease. (Fixed critical config backup recursion issue in 2.6.6)",
 	"author": "NoteHelper Team",
 	"authorUrl": "https://github.com/notehelper",
 	"isDesktopOnly": false
