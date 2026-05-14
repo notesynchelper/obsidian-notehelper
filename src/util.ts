@@ -12,7 +12,9 @@ export const DATE_FORMAT = `${DATE_FORMAT_W_OUT_SECONDS}:ss`
 export const REPLACEMENT_CHAR = '-'
 // On Unix-like systems / is reserved and <>:"/\|?* as well as non-printable characters \u0000-\u001F on Windows
 // credit: https://github.com/sindresorhus/filename-reserved-regex
+// eslint-disable-next-line no-control-regex -- 故意匹配控制字符以剥离 Windows 非法文件名
 export const ILLEGAL_CHAR_REGEX_FILE = /[<>:"/\\|?*\u0000-\u001F]/g
+// eslint-disable-next-line no-control-regex -- 同上，用于文件夹名清洗
 export const ILLEGAL_CHAR_REGEX_FOLDER = /[<>:"\\|?*\u0000-\u001F]/g
 
 export interface HighlightPoint {

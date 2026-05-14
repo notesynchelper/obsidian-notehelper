@@ -128,7 +128,7 @@ function md51(bytes: Uint8Array): number[] {
 }
 
 function md5blk(s: Uint8Array): number[] {
-  const blk: number[] = new Array(16)
+  const blk: number[] = new Array<number>(16)
   for (let i = 0; i < 16; i++) {
     const j = i * 4
     blk[i] =

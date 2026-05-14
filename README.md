@@ -1,4 +1,4 @@
-# obsidian-notehelper
+# NoteHelper
 
 An Obsidian plugin for syncing notes and articles to Obsidian.
 
@@ -15,15 +15,15 @@ An Obsidian plugin for syncing notes and articles to Obsidian.
 
 1. Open Obsidian Settings
 2. Navigate to "Community plugins"
-3. Search for "obsidian-notehelper"
+3. Search for "NoteHelper"
 4. Click Install
 
 ### Manual Installation
 
 1. Download the latest `main.js`, `manifest.json`, and `styles.css` from [Releases](https://github.com/notesynchelper/obsidian-notehelper/releases)
-2. Copy these files to your vault's `.obsidian/plugins/obsidian-notehelper/` directory
+2. Copy these files to your vault's `.obsidian/plugins/notehelper/` directory
 3. Reload Obsidian
-4. Enable "obsidian-notehelper" in Settings
+4. Enable "NoteHelper" in Settings
 
 ## Usage
 
@@ -159,7 +159,7 @@ For questions or suggestions:
 
 ---
 
-# 笔记同步助手
+# NoteHelper（笔记同步助手）
 
 一个用于将笔记和文章同步到 Obsidian 的插件。
 
@@ -176,15 +176,15 @@ For questions or suggestions:
 
 1. 打开 Obsidian 设置
 2. 进入"社区插件"
-3. 搜索"笔记同步助手"
+3. 搜索"NoteHelper"
 4. 点击安装
 
 ### 手动安装
 
 1. 从 [Releases](https://github.com/notesynchelper/obsidian-notehelper/releases) 下载最新版本的 `main.js`、`manifest.json` 和 `styles.css`
-2. 将这些文件复制到你的 vault 的 `.obsidian/plugins/obsidian-notehelper/` 目录下
+2. 将这些文件复制到你的 vault 的 `.obsidian/plugins/notehelper/` 目录下
 3. 重新加载 Obsidian
-4. 在设置中启用"笔记同步助手"插件
+4. 在设置中启用"NoteHelper"插件
 
 ## 使用说明
 

@@ -52,9 +52,9 @@ export default class OmnivorePlugin extends Plugin {
     let timeout: number | null = null
     return () => {
       if (timeout !== null) {
-        activeWindow.clearTimeout(timeout)
+        window.clearTimeout(timeout)
       }
-      timeout = activeWindow.setTimeout(() => {
+      timeout = window.setTimeout(() => {
         log('💾 [防抖保存] 开始执行磁盘 I/O 操作...')
         const startTime = Date.now()
         const settingsToSave = { ...this.settings }
@@ -88,7 +88,7 @@ export default class OmnivorePlugin extends Plugin {
     // 🚀 延迟非关键操作到启动完成后再执行
     this.app.workspace.onLayoutReady(() => {
       // 延迟3秒后执行非关键初始化（优化启动速度）
-      activeWindow.setTimeout(() => {
+      window.setTimeout(() => {
         void this.initializeNonCriticalFeatures()
       }, 3000)
     })
@@ -178,7 +178,7 @@ export default class OmnivorePlugin extends Plugin {
         if (this.settings.version !== this.manifest.version) {
           this.settings.version = this.manifest.version
           // 延迟保存，不阻塞启动
-          activeWindow.setTimeout(() => { void this.saveSettings() }, 3000)
+          window.setTimeout(() => { void this.saveSettings() }, 3000)
         }
       }
 
@@ -203,7 +203,7 @@ export default class OmnivorePlugin extends Plugin {
     if (this.settings.syncOnStart) {
       this.app.workspace.onLayoutReady(() => {
         // 延迟2秒执行同步，确保启动完成
-        activeWindow.setTimeout(() => {
+        window.setTimeout(() => {
           if (this.settings.apiKey) {
             void this.fetchOmnivore(false).then(() => {
               this.refreshFileExplorer()
@@ -418,7 +418,7 @@ export default class OmnivorePlugin extends Plugin {
   onunload() {
     // 清理防抖timeout
     if (this.refreshTimeout !== null) {
-      activeWindow.clearTimeout(this.refreshTimeout)
+      window.clearTimeout(this.refreshTimeout)
       this.refreshTimeout = null
     }
     // registerInterval 会自动清理定时器，无需手动处理
@@ -771,7 +771,7 @@ export default class OmnivorePlugin extends Plugin {
       // 根据图片处理模式进行异步处理（不阻塞同步流程）
       if (this.settings.imageMode === ImageMode.LOCAL && this.imageLocalizer) {
         log('🖼️ 开始异步处理图片本地化...')
-        activeWindow.setTimeout(() => {
+        window.setTimeout(() => {
           void this.imageLocalizer?.processQueue()
             .then(() => log('🖼️ 图片本地化队列处理完成'))
             .catch((error: unknown) => logError('图片本地化处理失败:', error))
@@ -779,7 +779,7 @@ export default class OmnivorePlugin extends Plugin {
       } else if (this.settings.imageMode === ImageMode.DISABLED) {
         log('🖼️ 开始异步注释图片...')
         const processedFilesArray = syncContext.getProcessedFilesArray()
-        activeWindow.setTimeout(() => {
+        window.setTimeout(() => {
           void this.commentOutImages(processedFilesArray)
             .then(() => log('🖼️ 图片注释处理完成'))
             .catch((error: unknown) => logError('图片注释处理失败:', error))
@@ -809,10 +809,10 @@ export default class OmnivorePlugin extends Plugin {
   private refreshFileExplorer() {
     // 防抖：如果已经有刷新任务在队列中，取消之前的
     if (this.refreshTimeout !== null) {
-      activeWindow.clearTimeout(this.refreshTimeout)
+      window.clearTimeout(this.refreshTimeout)
     }
 
-    this.refreshTimeout = activeWindow.setTimeout(() => {
+    this.refreshTimeout = window.setTimeout(() => {
       try {
         log('🔄 开始刷新文件浏览器')
 

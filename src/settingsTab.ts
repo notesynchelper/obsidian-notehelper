@@ -106,7 +106,7 @@ export class OmnivoreSettingTab extends PluginSettingTab {
     this.displayVersionInfo(containerEl)
 
     // 🚀 延迟执行配置迁移（不阻塞页面显示）
-    activeWindow.setTimeout(() => {
+    window.setTimeout(() => {
       void this.checkAndPerformMigration()
     }, 500)
 
@@ -277,7 +277,7 @@ export class OmnivoreSettingTab extends PluginSettingTab {
                 )
 
                 // 自动刷新以获取最新数量
-                activeWindow.setTimeout(() => {
+                window.setTimeout(() => {
                   void (async () => {
                     try {
                       const count = await getArticleCount(
