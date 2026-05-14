@@ -106,7 +106,7 @@ export class OmnivoreSettingTab extends PluginSettingTab {
     this.displayVersionInfo(containerEl)
 
     // 🚀 延迟执行配置迁移（不阻塞页面显示）
-    setTimeout(() => {
+    activeWindow.setTimeout(() => {
       void this.checkAndPerformMigration()
     }, 500)
 
@@ -143,29 +143,29 @@ export class OmnivoreSettingTab extends PluginSettingTab {
       })
 
     // 会员状态展示区域
-    this.vipStatusContainer = containerEl.createEl('div', {
+    this.vipStatusContainer = containerEl.createDiv({
       cls: 'vip-status-container',
     })
 
     // 左侧：状态信息容器
-    const statusContainer = this.vipStatusContainer.createEl('div', {
+    const statusContainer = this.vipStatusContainer.createDiv({
       cls: 'vip-status-left',
     })
 
     // 会员状态信息
-    statusContainer.createEl('div', {
+    statusContainer.createDiv({
       cls: 'vip-status-info',
       text: '加载中...',
     })
 
     // 引导文字（放在状态信息下方）
-    statusContainer.createEl('div', {
+    statusContainer.createDiv({
       cls: 'vip-status-qr-label',
       text: '加载中...',
     })
 
     // 右侧：二维码容器
-    const qrContainer = this.vipStatusContainer.createEl('div', {
+    const qrContainer = this.vipStatusContainer.createDiv({
       cls: 'vip-status-qr',
     })
 
@@ -277,7 +277,7 @@ export class OmnivoreSettingTab extends PluginSettingTab {
                 )
 
                 // 自动刷新以获取最新数量
-                setTimeout(() => {
+                activeWindow.setTimeout(() => {
                   void (async () => {
                     try {
                       const count = await getArticleCount(
@@ -532,8 +532,7 @@ export class OmnivoreSettingTab extends PluginSettingTab {
         )
         .addText((text) =>
           text
-            // eslint-disable-next-line obsidianmd/ui/sentence-case
-            .setPlaceholder('date format: yyyy-MM-dd')
+            .setPlaceholder('Date format: yyyy-MM-dd')
             .setValue(this.plugin.settings.singleFileDateFormat)
             .onChange(async (value) => {
               this.plugin.settings.singleFileDateFormat = value || 'yyyy-MM-dd'
@@ -560,12 +559,10 @@ export class OmnivoreSettingTab extends PluginSettingTab {
       })
     new Setting(containerEl)
       .setName('文件夹日期格式 / folder date format')
-      // eslint-disable-next-line obsidianmd/ui/sentence-case
-      .setDesc('specify the date format if date is used. Example: yyyy-MM-dd')
+      .setDesc('Specify the date format if date is used. Example: yyyy-MM-dd')
       .addText((text) =>
         text
-          // eslint-disable-next-line obsidianmd/ui/sentence-case
-          .setPlaceholder('date format')
+          .setPlaceholder('Date format')
           .setValue(this.plugin.settings.folderDateFormat)
           .onChange(async (value) => {
             this.plugin.settings.folderDateFormat = value
@@ -606,12 +603,10 @@ export class OmnivoreSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName('文件名日期格式 / filename date format')
-      // eslint-disable-next-line obsidianmd/ui/sentence-case
-      .setDesc('specify the date format for the filename if date is used. Reference format documentation online.')
+      .setDesc('Specify the date format for the filename if date is used. Reference format documentation online.')
       .addText((text) =>
         text
-          // eslint-disable-next-line obsidianmd/ui/sentence-case
-          .setPlaceholder('yyyy-MM-dd')
+          .setPlaceholder('Date format: yyyy-MM-dd')
           .setValue(this.plugin.settings.filenameDateFormat)
           .onChange(async (value) => {
             this.plugin.settings.filenameDateFormat = value
@@ -663,8 +658,7 @@ export class OmnivoreSettingTab extends PluginSettingTab {
     // 只在本地模式下显示高级选项
     if (this.plugin.settings.imageMode === ImageMode.LOCAL) {
       new Setting(containerEl)
-        // eslint-disable-next-line obsidianmd/ui/sentence-case
-        .setName('convert PNG to JPEG / convert png to jpeg')
+        .setName('Convert PNG to JPEG / Convert png to jpeg')
         .setDesc(
           '勾选此选项将PNG图片转换为JPEG格式以节省空间。注意：会丢失透明度信息 / check this box to convert PNG images to JPEG format to save space. Note: transparency will be lost'
         )
@@ -889,7 +883,7 @@ export class OmnivoreSettingTab extends PluginSettingTab {
       .setHeading()
       .setClass('omnivore-collapsible')
 
-    const advancedSettings = containerEl.createEl('div', {
+    const advancedSettings = containerEl.createDiv({
       cls: 'omnivore-content',
     })
 
@@ -970,12 +964,10 @@ export class OmnivoreSettingTab extends PluginSettingTab {
 
     new Setting(advancedSettings)
       .setName('保存日期格式 / date saved format')
-      // eslint-disable-next-line obsidianmd/ui/sentence-case
-      .setDesc('specify the date format for dateSaved variable in rendered template. Example format: yyyy-MM-dd\'T\'HH:mm:ss')
+      .setDesc('Specify the date format for dateSaved variable in rendered template. Example format: yyyy-MM-dd\'T\'HH:mm:ss')
       .addText((text) =>
         text
-          // eslint-disable-next-line obsidianmd/ui/sentence-case
-          .setPlaceholder('yyyy-MM-dd\'T\'HH:mm:ss')
+          .setPlaceholder('Date format: yyyy-MM-dd\'T\'HH:mm:ss')
           .setValue(this.plugin.settings.dateSavedFormat)
           .onChange(async (value) => {
             this.plugin.settings.dateSavedFormat = value
@@ -1085,7 +1077,7 @@ export class OmnivoreSettingTab extends PluginSettingTab {
     })
 
     // script to make collapsible sections
-    const coll = document.getElementsByClassName('omnivore-collapsible')
+    const coll = activeDocument.getElementsByClassName('omnivore-collapsible')
 
     for (let i = 0; i < coll.length; i++) {
       coll[i].addEventListener('click', function (this: HTMLElement) {
@@ -1108,7 +1100,7 @@ export class OmnivoreSettingTab extends PluginSettingTab {
 
   private displayVersionInfo(containerEl: HTMLElement) {
     // 创建版本信息容器
-    const versionContainer = containerEl.createEl('div', {
+    const versionContainer = containerEl.createDiv({
       cls: 'omnivore-version-container',
     })
     versionContainer.setCssStyles({
@@ -1121,11 +1113,11 @@ export class OmnivoreSettingTab extends PluginSettingTab {
 
     // 当前版本显示
     const currentVersion = this.plugin.manifest.version
-    const versionInfo = versionContainer.createEl('div', {
+    const versionInfo = versionContainer.createDiv({
       cls: 'omnivore-version-info',
     })
 
-    const versionText = versionInfo.createEl('span', {
+    const versionText = versionInfo.createSpan({
       text: `笔记同步助手版本: ${currentVersion}`,
       cls: 'omnivore-current-version',
     })
@@ -1221,7 +1213,7 @@ export class OmnivoreSettingTab extends PluginSettingTab {
     }
 
     // 显示新的状态信息
-    const statusEl = versionContainer.createEl('div', {
+    const statusEl = versionContainer.createDiv({
       text: message,
       cls: 'omnivore-version-status',
     })
@@ -1259,7 +1251,7 @@ export class OmnivoreSettingTab extends PluginSettingTab {
     if (isNewer) {
       log('🔄 显示更新提示')
       // 有新版本可用
-      const updateContainer = versionContainer.createEl('div', {
+      const updateContainer = versionContainer.createDiv({
         cls: 'omnivore-update-available',
       })
       updateContainer.setCssStyles({
@@ -1269,7 +1261,7 @@ export class OmnivoreSettingTab extends PluginSettingTab {
         borderRadius: '4px',
       })
 
-      const updateText = updateContainer.createEl('div', {
+      const updateText = updateContainer.createDiv({
         text: `发现新版本 ${latestVersion}！`,
         cls: 'omnivore-update-text',
       })

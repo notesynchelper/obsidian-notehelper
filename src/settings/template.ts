@@ -1,5 +1,4 @@
 import { Item, ItemType } from '@omnivore-app/api'
-import { truncate } from 'lodash'
 import Mustache from 'mustache'
 import { parseYaml, stringifyYaml } from 'obsidian'
 import {
@@ -159,10 +158,13 @@ export const renderFilename = (
 ) => {
   const renderedFilename = render(item, filename, dateFormat)
 
-  // truncate the filename to 100 characters
-  return truncate(renderedFilename, {
-    length: 100,
-  })
+  // truncate the filename to 100 characters (matches lodash.truncate default omission)
+  const MAX_LENGTH = 100
+  const OMISSION = '...'
+  if (renderedFilename.length <= MAX_LENGTH) {
+    return renderedFilename
+  }
+  return renderedFilename.slice(0, MAX_LENGTH - OMISSION.length) + OMISSION
 }
 
 export const renderLabels = (labels?: LabelView[]) => {

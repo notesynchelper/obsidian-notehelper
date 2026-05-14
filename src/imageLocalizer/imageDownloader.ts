@@ -11,7 +11,7 @@ import { DownloadResult } from './types'
  * 延迟函数
  */
 function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
+  return new Promise((resolve) => activeWindow.setTimeout(resolve, ms))
 }
 
 /**

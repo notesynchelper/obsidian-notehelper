@@ -139,7 +139,7 @@ export class MergeProcessor {
 		existingFrontMatter: FrontMatterMessage[],
 		newFrontMatter: FrontMatterMessage[],
 		existingContentWithoutFrontmatter: string,
-		contentWithoutFrontmatter: string,
+		_contentWithoutFrontmatter: string,
 		otherProperties: Record<string, unknown>
 	): Promise<void> {
 		const frontMatterIdx = findFrontMatterIndex(existingFrontMatter, item.id)

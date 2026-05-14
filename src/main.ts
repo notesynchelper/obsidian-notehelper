@@ -37,7 +37,7 @@ import { FileProcessor } from './sync/FileProcessor'
 
 export default class OmnivorePlugin extends Plugin {
   settings: OmnivoreSettings
-  private refreshTimeout: ReturnType<typeof setTimeout> | null = null
+  private refreshTimeout: number | null = null
   private syncing: boolean = false
   private debouncedSaveSettings: () => void
   configMigrationManager: ConfigMigrationManager
@@ -49,12 +49,12 @@ export default class OmnivorePlugin extends Plugin {
   }
 
   private createDebouncedSave(): () => void {
-    let timeout: ReturnType<typeof setTimeout> | null = null
+    let timeout: number | null = null
     return () => {
-      if (timeout) {
-        clearTimeout(timeout)
+      if (timeout !== null) {
+        activeWindow.clearTimeout(timeout)
       }
-      timeout = setTimeout(() => {
+      timeout = activeWindow.setTimeout(() => {
         log('💾 [防抖保存] 开始执行磁盘 I/O 操作...')
         const startTime = Date.now()
         const settingsToSave = { ...this.settings }
@@ -72,10 +72,13 @@ export default class OmnivorePlugin extends Plugin {
     }
   }
 
-  async onload() {
+  onload(): void {
     // 🚀 优化启动速度：延迟非关键操作
     log('🚀 笔记同步助手启动中...')
+    void this.bootstrap()
+  }
 
+  private async bootstrap(): Promise<void> {
     // 关键操作：立即加载基本设置
     await this.loadEssentialSettings()
 
@@ -85,7 +88,7 @@ export default class OmnivorePlugin extends Plugin {
     // 🚀 延迟非关键操作到启动完成后再执行
     this.app.workspace.onLayoutReady(() => {
       // 延迟3秒后执行非关键初始化（优化启动速度）
-      setTimeout(() => {
+      activeWindow.setTimeout(() => {
         void this.initializeNonCriticalFeatures()
       }, 3000)
     })
@@ -175,7 +178,7 @@ export default class OmnivorePlugin extends Plugin {
         if (this.settings.version !== this.manifest.version) {
           this.settings.version = this.manifest.version
           // 延迟保存，不阻塞启动
-          setTimeout(() => { void this.saveSettings() }, 3000)
+          activeWindow.setTimeout(() => { void this.saveSettings() }, 3000)
         }
       }
 
@@ -200,7 +203,7 @@ export default class OmnivorePlugin extends Plugin {
     if (this.settings.syncOnStart) {
       this.app.workspace.onLayoutReady(() => {
         // 延迟2秒执行同步，确保启动完成
-        setTimeout(() => {
+        activeWindow.setTimeout(() => {
           if (this.settings.apiKey) {
             void this.fetchOmnivore(false).then(() => {
               this.refreshFileExplorer()
@@ -407,15 +410,15 @@ export default class OmnivorePlugin extends Plugin {
       <text x="2" y="13" font-size="12" font-family="Noto Sans SC, sans-serif" font-weight="bold" fill="currentColor">同</text></svg>`
     )
 
-    this.addRibbonIcon(iconId, iconId, async (evt: MouseEvent) => {
+    this.addRibbonIcon(iconId, iconId, async (_evt: MouseEvent) => {
       await this.fetchOmnivore()
     })
   }
 
   onunload() {
     // 清理防抖timeout
-    if (this.refreshTimeout) {
-      clearTimeout(this.refreshTimeout)
+    if (this.refreshTimeout !== null) {
+      activeWindow.clearTimeout(this.refreshTimeout)
       this.refreshTimeout = null
     }
     // registerInterval 会自动清理定时器，无需手动处理
@@ -768,17 +771,15 @@ export default class OmnivorePlugin extends Plugin {
       // 根据图片处理模式进行异步处理（不阻塞同步流程）
       if (this.settings.imageMode === ImageMode.LOCAL && this.imageLocalizer) {
         log('🖼️ 开始异步处理图片本地化...')
-        // 使用 setTimeout 确保不阻塞主流程
-        setTimeout(() => {
+        activeWindow.setTimeout(() => {
           void this.imageLocalizer?.processQueue()
             .then(() => log('🖼️ 图片本地化队列处理完成'))
             .catch((error: unknown) => logError('图片本地化处理失败:', error))
         }, 500)
       } else if (this.settings.imageMode === ImageMode.DISABLED) {
         log('🖼️ 开始异步注释图片...')
-        // 使用 setTimeout 确保不阻塞主流程
         const processedFilesArray = syncContext.getProcessedFilesArray()
-        setTimeout(() => {
+        activeWindow.setTimeout(() => {
           void this.commentOutImages(processedFilesArray)
             .then(() => log('🖼️ 图片注释处理完成'))
             .catch((error: unknown) => logError('图片注释处理失败:', error))
@@ -807,11 +808,11 @@ export default class OmnivorePlugin extends Plugin {
    */
   private refreshFileExplorer() {
     // 防抖：如果已经有刷新任务在队列中，取消之前的
-    if (this.refreshTimeout) {
-      clearTimeout(this.refreshTimeout)
+    if (this.refreshTimeout !== null) {
+      activeWindow.clearTimeout(this.refreshTimeout)
     }
 
-    this.refreshTimeout = setTimeout(() => {
+    this.refreshTimeout = activeWindow.setTimeout(() => {
       try {
         log('🔄 开始刷新文件浏览器')
 

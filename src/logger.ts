@@ -1,4 +1,3 @@
-/* eslint-env node, browser */
 /**
  * 日志管理器
  * 根据构建配置控制日志输出

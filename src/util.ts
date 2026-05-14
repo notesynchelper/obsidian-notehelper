@@ -12,9 +12,7 @@ export const DATE_FORMAT = `${DATE_FORMAT_W_OUT_SECONDS}:ss`
 export const REPLACEMENT_CHAR = '-'
 // On Unix-like systems / is reserved and <>:"/\|?* as well as non-printable characters \u0000-\u001F on Windows
 // credit: https://github.com/sindresorhus/filename-reserved-regex
-// eslint-disable-next-line no-control-regex
 export const ILLEGAL_CHAR_REGEX_FILE = /[<>:"/\\|?*\u0000-\u001F]/g
-// eslint-disable-next-line no-control-regex
 export const ILLEGAL_CHAR_REGEX_FOLDER = /[<>:"\\|?*\u0000-\u001F]/g
 
 export interface HighlightPoint {
@@ -192,24 +190,20 @@ export const formatHighlightQuote = (
 }
 
 export const findFrontMatterIndex = (
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  frontMatter: any[],
+  frontMatter: { id?: string }[],
   id: string,
 ): number => {
   // find index of front matter with matching id
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
   return frontMatter.findIndex((fm) => fm.id == id)
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const parseFrontMatterFromContent = (content: string): any => {
+export const parseFrontMatterFromContent = (content: string): unknown => {
   // get front matter yaml from content
   // 兼容Windows行尾符 \r\n
   const frontMatter = content.match(/^---\r?\n(.*?)\r?\n---/s)
   if (!frontMatter) {
     return undefined
   }
-  // parse yaml - 返回any以保持与调用方的兼容性
   return parseYaml(frontMatter[1])
 }
 
@@ -229,7 +223,7 @@ const removeInvisibleChars = (str: string): string => {
 export const setOrUpdateHighlightColors = (
   colorSetting: HighlightColorMapping,
 ) => {
-  const root = document.documentElement
+  const root = activeDocument.documentElement
 
   Object.entries(colorSetting).forEach(([k, v]) => {
     root.style.setProperty(`--omni-${k}`, v)

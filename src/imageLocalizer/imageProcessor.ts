@@ -5,7 +5,7 @@
 
 import { Vault, normalizePath, TFolder } from 'obsidian'
 import { log, logError } from '../logger'
-import CryptoJS from 'crypto-js'
+import { md5Hex } from './md5'
 
 /**
  * MD5 分段采样计算（性能优化）
@@ -37,12 +37,7 @@ export function calculateMD5(data: ArrayBuffer): string {
     sampledData.set(tail, SAMPLE_SIZE * 2)
   }
 
-  // 转换为 WordArray 供 crypto-js 使用
-  // CryptoJS WordArray.create expects an array-like structure
-  const wordArray = CryptoJS.lib.WordArray.create(sampledData as unknown as number[])
-  const hash = CryptoJS.MD5(wordArray).toString()
-
-  return `${hash}_MD5`
+  return `${md5Hex(sampledData)}_MD5`
 }
 
 /**
@@ -129,7 +124,7 @@ export async function convertPngToJpeg(
       img.onload = () => {
         try {
           // 创建 Canvas
-          const canvas = document.createElement('canvas')
+          const canvas = activeDocument.createEl('canvas')
           canvas.width = img.width
           canvas.height = img.height
 
